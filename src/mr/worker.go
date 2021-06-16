@@ -1,7 +1,10 @@
-/**********************************************
-*	author: Snaper
-*	decs: 	MapReduce Rpc Client
-**********************************************/
+/*
+ * @Description:
+ * @User: Snaper <532990528@qq.com>
+ * @Date: 2021-06-16 12:25:18
+ * @LastEditTime: 2021-06-16 14:49:25
+ */
+
 package mr
 
 import (
@@ -11,9 +14,7 @@ import (
 	"log"
 	"net/rpc"
 	"os"
-	"sort"
 )
-
 
 //
 // Map functions return a slice of KeyValue.
@@ -22,7 +23,6 @@ type KeyValue struct {
 	Key   string
 	Value string
 }
-
 
 // for sorting by key.
 type ByKey []KeyValue
@@ -42,24 +42,21 @@ func ihash(key string) int {
 	return int(h.Sum32() & 0x7fffffff)
 }
 
-
 //
 // main/mrworker.go calls this function.
 //
 func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
-		args := MrRpcArgs{}
-		reply := MrRpcReply{}
-		call("Coordinator.SendTask",&args,&reply)
+	args := MrRpcArgs{}
+	reply := MrRpcReply{}
+	call("Coordinator.SendTask", &args, &reply)
 
-		if reply.TaskType==MapTask { 
-			mapProcess(mapf,reply.FilePath)
+	if reply.TaskType == MapTask {
+		mapProcess(mapf, &reply)
 
-		}else{
-			reduceProcess()
-		}
-
-		
+	} else {
+		reduceProcess()
+	}
 
 }
 
@@ -68,39 +65,37 @@ func Worker(mapf func(string, string) []KeyValue,
 //
 // the RPC argument and reply types are defined in rpc.go.
 //
-func mapProcess(mapf func(string, string) []KeyValue,filename string){
+func mapProcess(mapf func(string, string) []KeyValue, reply *MrRpcReply) (string, error) {
 
-	intermediate := []KeyValue{}
-	
-	file, err := os.Open(filename)
+	file, err := os.Open(reply.FilePath)
 	if err != nil {
-		log.Fatalf("cannot open %v", filename)
+		log.Fatalf("cannot open %v", reply.FilePath)
 	}
 	content, err := ioutil.ReadAll(file)
 	if err != nil {
-		log.Fatalf("cannot read %v", filename)
+		log.Fatalf("cannot read %v", reply.FilePath)
 	}
 	file.Close()
-	kva := mapf(filename, string(content))
-	intermediate = append(intermediate, kva...)
-	
-
-	//
-	// a big difference from real MapReduce is that all the
-	// intermediate data is in one place, intermediate[],
-	// rather than being partitioned into NxM buckets.
-	//
-
-	sort.Sort(ByKey(intermediate))
-
-	oname := "mr-out-0"
-	ofile, _ := os.Create(oname)
+	kva := mapf(reply.FilePath, string(content))
+	return writeIntoFile(kva)
 
 }
 
-func reduceProcess(){
+func reduceProcess() {
 
 }
+
+/**
+ * @name:  writeIntoFile
+ * @desc:  
+ * @param {type}
+ * @return {type}
+ */
+
+func writeIntoFile([]KeyValue) (string, error) {
+
+}
+
 //
 // send an RPC request to the coordinator, wait for the response.
 // usually returns true.
