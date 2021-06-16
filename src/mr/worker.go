@@ -2,12 +2,13 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-16 14:49:25
+ * @LastEditTime: 2021-06-17 00:47:39
  */
 
 package mr
 
 import (
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"io/ioutil"
@@ -60,12 +61,14 @@ func Worker(mapf func(string, string) []KeyValue,
 
 }
 
-//
-// example function to show how to make an RPC call to the coordinator.
-//
-// the RPC argument and reply types are defined in rpc.go.
-//
-func mapProcess(mapf func(string, string) []KeyValue, reply *MrRpcReply) (string, error) {
+/**
+ * @name: mapProcess
+ * @desc: 对文件进行读入，并执行map方法
+ * @param mapf, MrRpcReply
+ * @return 输出的文件集合和是否正常运行
+ */
+
+func mapProcess(mapf func(string, string) []KeyValue, reply *MrRpcReply) ([]string, bool) {
 
 	file, err := os.Open(reply.FilePath)
 	if err != nil {
@@ -77,7 +80,7 @@ func mapProcess(mapf func(string, string) []KeyValue, reply *MrRpcReply) (string
 	}
 	file.Close()
 	kva := mapf(reply.FilePath, string(content))
-	return writeIntoFile(kva)
+	return writeIntoFile(kva, reply.TaskSeqNum)
 
 }
 
@@ -87,13 +90,27 @@ func reduceProcess() {
 
 /**
  * @name:  writeIntoFile
- * @desc:  
- * @param {type}
- * @return {type}
+ * @desc:	把map结果输出
+ * @param 输出的键值对  文件的序号
+ * @return 文件名   执行是否成功
  */
 
-func writeIntoFile([]KeyValue) (string, error) {
+func writeIntoFile(kvs []KeyValue, fileSeqNum int) ([]string, bool) {
+	var outputFileNames []string
+	for _, kv := range kvs {
+		reduceSeqNum := ihash(kv.Key) % NReduce
+		ofile := fmt.Sprintf("map-out-partition-%d-%d", fileSeqNum, reduceSeqNum)
+		f, _ := os.OpenFile(ofile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
+		enc := json.NewEncoder(f)
+		err := enc.Encode(kv)
+		f.Close()
+		if err != nil {
+			return outputFileNames, false
+		}
+		outputFileNames = append(outputFileNames, ofile)
+	}
 
+	return outputFileNames, true
 }
 
 //

@@ -14,11 +14,7 @@ import (
 )
 
 
-const(
-	MapTask = 1
-	ReduceTask = 2 
 
-)
 	
 
 type Coordinator struct {
