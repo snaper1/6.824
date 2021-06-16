@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-17 01:02:22
+ * @LastEditTime: 2021-06-17 01:13:51
  */
 
 package mr
@@ -84,12 +84,6 @@ func mapProcess(mapf func(string, string) []KeyValue, reply *MrRpcReply) ([]stri
 
 }
 
-/**
- * @name:
- * @desc:
- * @param {*}
- * @return {*}
- */
 func reduceProcess() {
 
 }
