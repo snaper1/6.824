@@ -2,12 +2,9 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-17 14:15:24
+ * @LastEditTime: 2021-06-18 00:15:04
  */
-/**********************************************
-*	author: Snaper
-*	decs: 	MapReduce Rpc Defination
-**********************************************/
+
 package mr
 
 import (
@@ -21,6 +18,7 @@ import (
 //
 
 type MrRpcArgs struct {
+	TaskType   int
 	FilePaths  []string
 	TaskSeqNum int
 }

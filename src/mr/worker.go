@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-17 14:41:08
+ * @LastEditTime: 2021-06-18 00:39:34
  */
 
 package mr
@@ -53,6 +53,7 @@ func Worker(mapf func(string, string) []KeyValue,
 		if reply.TaskType == MAP_TASK {
 			outPutFiles, ok := mapProcess(mapf, reply)
 			if ok == true {
+				call("Coordinate.CompleteTask", &MrRpcArgs{reply.TaskType, outPutFiles, reply.TaskSeqNum}, &MrRpcReply{})
 
 			} else {
 				log.Printf("[ERROR] MapTask no.%d failed, redo work", reply.TaskSeqNum)

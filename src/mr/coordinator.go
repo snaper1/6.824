@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-17 14:14:32
+ * @LastEditTime: 2021-06-18 00:43:25
  */
 
 package mr
@@ -13,12 +13,19 @@ import (
 	"net/http"
 	"net/rpc"
 	"os"
+	"sync"
 )
 
 //程序master，协调器，负责分发委派任务
 type Coordinator struct {
-	QMapTask    chan MapTask    //保存Map任务，即文件路径，因为存在并发所以使用chan保存
-	QReduceTask chan ReduceTask //保存reduce任务，即文件路径，因为存在并发所以使用chan保存
+	nFile               int             //要统计的文本数量
+	completedMapTask    int             //完成的Map任务数量
+	completedReduceTask int             //完成的reduce任务数量
+	QMapTask            chan MapTask    //保存Map任务，即文件路径，因为存在并发所以使用chan保存
+	QReduceTask         chan ReduceTask //保存reduce任务，即文件路径，因为存在并发所以使用chan保存
+	MapOutputFile       []string        //map任务输出的文件
+	ReduceOutputFile    []string        //reduce任务输出的文件
+	Lock                sync.Mutex      //互斥锁，保证协调器在工作时的线程安全性
 }
 
 //map任务类
@@ -47,12 +54,24 @@ func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 
 /**
  * @name: ReportTask
- * @desc: 汇报任务
+ * @desc: 任务完成后，汇报任务
  * @param {*}
  * @return {*}
  */
-func (c *Coordinator) ReportTask(args *MrRpcArgs, reply *MrRpcReply) error {
+func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
+	c.Lock.Lock()
+	switch args.TaskType {
+	case MAP_TASK:
+		c.completedMapTask++
+		c.MapOutputFile = append(c.MapOutputFile, args.FilePaths...)
+		if c.completedMapTask == c.nFile {
+			reply.TaskType = REDUCE_TASK
 
+		}
+	case REDUCE_TASK:
+
+	}
+	c.Lock.Unlock()
 	return nil
 }
 
