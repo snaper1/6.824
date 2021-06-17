@@ -1,30 +1,37 @@
+/*
+ * @Description:
+ * @User: Snaper <532990528@qq.com>
+ * @Date: 2021-06-16 12:25:17
+ * @LastEditTime: 2021-06-17 14:15:24
+ */
 /**********************************************
 *	author: Snaper
 *	decs: 	MapReduce Rpc Defination
 **********************************************/
 package mr
 
-import "os"
-import "strconv"
+import (
+	"os"
+	"strconv"
+)
 
 //
-// 
+//
 // request and reply for an RPC.
 //
 
-
 type MrRpcArgs struct {
-	
-
+	FilePaths  []string
+	TaskSeqNum int
 }
 
 type MrRpcReply struct {
 	//TaskTpe:
 	//1. MapTask
 	//2. ReduceTask
-	TaskType int	
-	FilePath string //input file path
-	TaskSeqNum int  //Task number for output
+	TaskType   int
+	FilePath   string //input file path
+	TaskSeqNum int    //Task number for output
 }
 
 // Cook up a unique-ish UNIX-domain socket name

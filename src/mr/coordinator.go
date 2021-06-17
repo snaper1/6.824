@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-17 13:35:15
+ * @LastEditTime: 2021-06-17 14:14:32
  */
 
 package mr
@@ -15,9 +15,22 @@ import (
 	"os"
 )
 
+//程序master，协调器，负责分发委派任务
 type Coordinator struct {
-	// Your definitions here.
+	QMapTask    chan MapTask    //保存Map任务，即文件路径，因为存在并发所以使用chan保存
+	QReduceTask chan ReduceTask //保存reduce任务，即文件路径，因为存在并发所以使用chan保存
+}
 
+//map任务类
+type MapTask struct {
+	TaskSeqNum int    //任务序号
+	Filename   string //任务路径
+}
+
+//reduce任务类
+type ReduceTask struct {
+	TaskSeqNum int    //任务序号
+	Filename   string //任务路径
 }
 
 /**

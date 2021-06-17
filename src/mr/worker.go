@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-17 13:27:30
+ * @LastEditTime: 2021-06-17 14:41:08
  */
 
 package mr
@@ -49,14 +49,19 @@ func ihash(key string) int {
 func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
 	for {
-		args := MrRpcArgs{}
-		reply := MrRpcReply{}
-		call("Coordinator.SendTask", &args, &reply)
-		if reply.TaskType == MapTask {
-			outPutFiles, ok := mapProcess(mapf, &reply)
+		reply := getTask()
+		if reply.TaskType == MAP_TASK {
+			outPutFiles, ok := mapProcess(mapf, reply)
+			if ok == true {
 
-		} else {
+			} else {
+				log.Printf("[ERROR] MapTask no.%d failed, redo work", reply.TaskSeqNum)
+			}
+
+		} else if reply.TaskType == REDUCE_TASK {
 			reduceProcess()
+		} else {
+			return
 		}
 	}
 
@@ -99,19 +104,40 @@ func reduceProcess() {
 func writeIntoFile(kvs []KeyValue, fileSeqNum int) ([]string, bool) {
 	var outputFileNames []string
 	for _, kv := range kvs {
-		reduceSeqNum := ihash(kv.Key) % NReduce
+		reduceSeqNum := ihash(kv.Key) % N_REDUCE
 		ofile := fmt.Sprintf("map-out-partition-%d-%d", fileSeqNum, reduceSeqNum)
 		f, _ := os.OpenFile(ofile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
 		enc := json.NewEncoder(f)
 		err := enc.Encode(kv)
 		f.Close()
 		if err != nil {
-			return outputFileNames, false
+			log.Printf("[ERROR] MapWorker no.%d write error , %s", fileSeqNum, err)
+			for _, outputFileName := range outputFileNames {
+				os.Remove(outputFileName)
+			}
+			return nil, false
 		}
 		outputFileNames = append(outputFileNames, ofile)
 	}
 
 	return outputFileNames, true
+}
+
+/**
+ * @name: getTask
+ * @desc: 获取任务
+ * @param {*}
+ * @return {*}
+ */
+func getTask() *MrRpcReply {
+	args := MrRpcArgs{}
+	reply := MrRpcReply{}
+	ok := call("Coordinator.SendTask", &args, &reply)
+	if ok == false {
+		log.Print("[FATAL] call SendTask failed, work done")
+		return nil
+	}
+	return &reply
 }
 
 //
