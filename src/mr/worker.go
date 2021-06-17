@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-17 01:13:51
+ * @LastEditTime: 2021-06-17 13:27:30
  */
 
 package mr
@@ -48,15 +48,16 @@ func ihash(key string) int {
 //
 func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
-	args := MrRpcArgs{}
-	reply := MrRpcReply{}
-	call("Coordinator.SendTask", &args, &reply)
+	for {
+		args := MrRpcArgs{}
+		reply := MrRpcReply{}
+		call("Coordinator.SendTask", &args, &reply)
+		if reply.TaskType == MapTask {
+			outPutFiles, ok := mapProcess(mapf, &reply)
 
-	if reply.TaskType == MapTask {
-		mapProcess(mapf, &reply)
-
-	} else {
-		reduceProcess()
+		} else {
+			reduceProcess()
+		}
 	}
 
 }
@@ -90,7 +91,7 @@ func reduceProcess() {
 
 /**
  * @name:  writeIntoFile
- * @desc:	把map结果输出
+ * @desc:	把map结果输出,输出文件为map-out-partition-mapSeq-reduceSeq
  * @param 输出的键值对  文件的序号
  * @return 文件名   执行是否成功
  */

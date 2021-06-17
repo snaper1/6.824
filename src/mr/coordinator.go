@@ -1,7 +1,10 @@
-/**********************************************
-*	author: Snaper
-*	decs: 	MapReduce Rpc Server
-**********************************************/
+/*
+ * @Description:
+ * @User: Snaper <532990528@qq.com>
+ * @Date: 2021-06-16 12:25:17
+ * @LastEditTime: 2021-06-17 13:35:15
+ */
+
 package mr
 
 import (
@@ -10,31 +13,35 @@ import (
 	"net/http"
 	"net/rpc"
 	"os"
-	
 )
-
-
-
-	
 
 type Coordinator struct {
 	// Your definitions here.
 
 }
 
-
-
-// RPC handler.
-//
-// the RPC argument and reply types are defined in rpc.go.
-//
-
+/**
+ * @name: SendTask
+ * @desc: 请求任务
+ * @param {*MrRpcArgs} args
+ * @param {*MrRpcReply} reply
+ * @return {*}
+ */
 func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 
 	return nil
 }
 
+/**
+ * @name: ReportTask
+ * @desc: 汇报任务
+ * @param {*}
+ * @return {*}
+ */
+func (c *Coordinator) ReportTask(args *MrRpcArgs, reply *MrRpcReply) error {
 
+	return nil
+}
 
 //
 // start a thread that listens for RPCs from worker.go
@@ -52,7 +59,6 @@ func (c *Coordinator) server() {
 	go http.Serve(l, nil)
 }
 
-
 //
 // main/mrcoordinator.go calls Done() periodically to find out
 // if the entire job has finished.
@@ -62,11 +68,8 @@ func (c *Coordinator) Done() bool {
 
 	// Your code here.
 
-
 	return ret
 }
-
-
 
 //
 // create a Coordinator.
@@ -77,7 +80,6 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
 
 	// Your code here.
-	
 
 	c.server()
 	return &c
