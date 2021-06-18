@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-19 00:32:16
+ * @LastEditTime: 2021-06-19 00:37:22
  */
 
 package mr
@@ -62,9 +62,10 @@ func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 }
 
 /**
- * @name: ReportTask
- * @desc: 任务完成后，汇报任务
- * @param {*}
+ * @name:
+ * @desc:
+ * @param {*MrRpcArgs} args
+ * @param {*MrRpcReply} reply
  * @return {*}
  */
 func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {

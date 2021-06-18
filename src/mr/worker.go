@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-19 00:28:38
+ * @LastEditTime: 2021-06-19 00:41:14
  */
 
 package mr
@@ -68,13 +68,14 @@ func Worker(mapf func(string, string) []KeyValue,
 
 }
 
+
 /**
  * @name: mapProcess
  * @desc: 对文件进行读入，并执行map方法
- * @param mapf, MrRpcReply
- * @return 输出的文件集合和是否正常运行
+ * @param {*} string mapf
+ * @param {*} string MrRpcReply
+ * @return {*} 输出的文件集合和是否正常运行
  */
-
 func mapProcess(mapf func(string, string) []KeyValue, reply *MrRpcReply) ([]string, bool) {
 
 	file, err := os.Open(reply.MTask.Filename)
@@ -97,11 +98,11 @@ func reduceProcess() {
 
 /**
  * @name:  writeIntoFile
- * @desc:	把map结果输出,输出文件为map-out-partition-mapSeq-reduceSeq
- * @param 输出的键值对  文件的序号
- * @return 文件名   执行是否成功
+ * @desc:  把map结果输出,输出文件为map-out-partition-mapSeq-reduceSeq
+ * @param {[]KeyValue} kvs 输出的键值对
+ * @param {int} fileSeqNum 文件的序号
+ * @return {*}执行是否成功
  */
-
 func writeIntoFile(kvs []KeyValue, fileSeqNum int) ([]string, bool) {
 	var outputFileNames []string
 	for _, kv := range kvs {
