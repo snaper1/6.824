@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-18 00:43:25
+ * @LastEditTime: 2021-06-18 13:41:12
  */
 
 package mr
@@ -18,6 +18,7 @@ import (
 
 //程序master，协调器，负责分发委派任务
 type Coordinator struct {
+	taskType            int
 	nFile               int             //要统计的文本数量
 	completedMapTask    int             //完成的Map任务数量
 	completedReduceTask int             //完成的reduce任务数量
@@ -65,7 +66,7 @@ func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
 		c.completedMapTask++
 		c.MapOutputFile = append(c.MapOutputFile, args.FilePaths...)
 		if c.completedMapTask == c.nFile {
-			reply.TaskType = REDUCE_TASK
+			c.taskType = REDUCE_TASK
 
 		}
 	case REDUCE_TASK:
@@ -73,6 +74,16 @@ func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
 	}
 	c.Lock.Unlock()
 	return nil
+}
+
+/**
+ * @name: initServer
+ * @desc:
+ * @param {*}
+ * @return {*}
+ */
+func (c *Coordinator) initServer() {
+
 }
 
 //
