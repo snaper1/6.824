@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-18 00:15:04
+ * @LastEditTime: 2021-06-19 00:27:37
  */
 
 package mr
@@ -27,9 +27,9 @@ type MrRpcReply struct {
 	//TaskTpe:
 	//1. MapTask
 	//2. ReduceTask
-	TaskType   int
-	FilePath   string //input file path
-	TaskSeqNum int    //Task number for output
+	TaskType int
+	MTask    MapTask
+	RTask    ReduceTask
 }
 
 // Cook up a unique-ish UNIX-domain socket name

@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-18 13:41:12
+ * @LastEditTime: 2021-06-19 00:32:16
  */
 
 package mr
@@ -48,8 +48,16 @@ type ReduceTask struct {
  * @param {*MrRpcReply} reply
  * @return {*}
  */
-func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 
+func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
+	switch c.taskType {
+	case MAP_TASK:
+		reply.TaskType = MAP_TASK
+		reply.MTask = <-c.QMapTask
+	case REDUCE_TASK:
+		reply.TaskType = REDUCE_TASK
+		reply.RTask = <-c.QReduceTask
+	}
 	return nil
 }
 
@@ -121,8 +129,12 @@ func (c *Coordinator) Done() bool {
 //
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
+	c.nFile = len(files)
+	c.QMapTask = make(chan MapTask, c.nFile)
 
-	// Your code here.
+	for i, file := range files {
+		c.QMapTask <- MapTask{i, file}
+	}
 
 	c.server()
 	return &c

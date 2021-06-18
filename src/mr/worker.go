@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-18 00:39:34
+ * @LastEditTime: 2021-06-19 00:28:38
  */
 
 package mr
@@ -53,10 +53,10 @@ func Worker(mapf func(string, string) []KeyValue,
 		if reply.TaskType == MAP_TASK {
 			outPutFiles, ok := mapProcess(mapf, reply)
 			if ok == true {
-				call("Coordinate.CompleteTask", &MrRpcArgs{reply.TaskType, outPutFiles, reply.TaskSeqNum}, &MrRpcReply{})
+				call("Coordinate.CompleteTask", &MrRpcArgs{reply.TaskType, outPutFiles, reply.MTask.TaskSeqNum}, &MrRpcReply{})
 
 			} else {
-				log.Printf("[ERROR] MapTask no.%d failed, redo work", reply.TaskSeqNum)
+				log.Printf("[ERROR] MapTask no.%d failed, redo work", reply.MTask.TaskSeqNum)
 			}
 
 		} else if reply.TaskType == REDUCE_TASK {
@@ -77,17 +77,17 @@ func Worker(mapf func(string, string) []KeyValue,
 
 func mapProcess(mapf func(string, string) []KeyValue, reply *MrRpcReply) ([]string, bool) {
 
-	file, err := os.Open(reply.FilePath)
+	file, err := os.Open(reply.MTask.Filename)
 	if err != nil {
-		log.Fatalf("cannot open %v", reply.FilePath)
+		log.Fatalf("cannot open %v", reply.MTask.Filename)
 	}
 	content, err := ioutil.ReadAll(file)
 	if err != nil {
-		log.Fatalf("cannot read %v", reply.FilePath)
+		log.Fatalf("cannot read %v", reply.MTask.Filename)
 	}
 	file.Close()
-	kva := mapf(reply.FilePath, string(content))
-	return writeIntoFile(kva, reply.TaskSeqNum)
+	kva := mapf(reply.MTask.Filename, string(content))
+	return writeIntoFile(kva, reply.MTask.TaskSeqNum)
 
 }
 
