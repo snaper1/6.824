@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-19 00:46:48
+ * @LastEditTime: 2021-06-19 17:34:15
  */
 
 package mr
@@ -37,7 +37,8 @@ type MapTask struct {
 
 //reduce任务类
 type ReduceTask struct {
-	TaskSeqNum int    //任务序号
+	TaskSeqNum int //任务序号
+	MTaskNum   int
 	Filename   string //任务路径
 }
 
@@ -76,7 +77,6 @@ func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
 		c.MapOutputFile = append(c.MapOutputFile, args.FilePaths...)
 		if c.completedMapTask == c.nFile {
 			c.taskType = REDUCE_TASK
-
 		}
 	case REDUCE_TASK:
 

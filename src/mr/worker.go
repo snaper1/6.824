@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-19 00:41:14
+ * @LastEditTime: 2021-06-19 17:39:12
  */
 
 package mr
@@ -50,7 +50,12 @@ func Worker(mapf func(string, string) []KeyValue,
 	reducef func(string, []string) string) {
 	for {
 		reply := getTask()
-		if reply.TaskType == MAP_TASK {
+		if reply == (MrRpcReply{}) {
+			return
+		}
+		switch reply.TaskType {
+
+		case MAP_TASK:
 			outPutFiles, ok := mapProcess(mapf, reply)
 			if ok == true {
 				call("Coordinate.CompleteTask", &MrRpcArgs{reply.TaskType, outPutFiles, reply.MTask.TaskSeqNum}, &MrRpcReply{})
@@ -59,15 +64,15 @@ func Worker(mapf func(string, string) []KeyValue,
 				log.Printf("[ERROR] MapTask no.%d failed, redo work", reply.MTask.TaskSeqNum)
 			}
 
-		} else if reply.TaskType == REDUCE_TASK {
+		case REDUCE_TASK:
 			reduceProcess()
-		} else {
+		default:
 			return
 		}
+
 	}
 
 }
-
 
 /**
  * @name: mapProcess
@@ -76,7 +81,7 @@ func Worker(mapf func(string, string) []KeyValue,
  * @param {*} string MrRpcReply
  * @return {*} 输出的文件集合和是否正常运行
  */
-func mapProcess(mapf func(string, string) []KeyValue, reply *MrRpcReply) ([]string, bool) {
+func mapProcess(mapf func(string, string) []KeyValue, reply MrRpcReply) ([]string, bool) {
 
 	file, err := os.Open(reply.MTask.Filename)
 	if err != nil {
@@ -92,7 +97,29 @@ func mapProcess(mapf func(string, string) []KeyValue, reply *MrRpcReply) ([]stri
 
 }
 
-func reduceProcess() {
+/**
+ * @name: reduceProcess
+ * @desc:
+ * @param {*} string
+ * @param {*} string
+ * @return {*}
+ */
+func reduceProcess(reducef func(string, []string) string, reply MrRpcReply) {
+	intermediate := []KeyValue{}
+	for i := 0; i < reply.RTask.MTaskNum; i++ {
+		filename := fmt.Sprintf("map-out-partition-%v-%v", i, reply.RTask.TaskSeqNum)
+		file, err := os.Open(filename)
+		if err != nil {
+			log.Fatalf("cannot open %v", filename)
+		}
+		content, err := ioutil.ReadAll(file)
+		if err != nil {
+			log.Fatalf("cannot read %v", filename)
+		}
+		file.Close()
+
+		intermediate = append(intermediate, content...)
+	}
 
 }
 
@@ -131,15 +158,15 @@ func writeIntoFile(kvs []KeyValue, fileSeqNum int) ([]string, bool) {
  * @param {*}
  * @return {*}
  */
-func getTask() *MrRpcReply {
+func getTask() MrRpcReply {
 	args := MrRpcArgs{}
 	reply := MrRpcReply{}
 	ok := call("Coordinator.SendTask", &args, &reply)
 	if ok == false {
 		log.Print("[FATAL] call SendTask failed, work done")
-		return nil
+		return MrRpcReply{}
 	}
-	return &reply
+	return reply
 }
 
 //
