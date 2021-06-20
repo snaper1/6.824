@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-20 21:53:00
+ * @LastEditTime: 2021-06-20 22:24:33
  */
 
 package mr
@@ -75,29 +75,19 @@ func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
 	case MAP_TASK:
 		c.completedMapTask++
 		c.MapOutputFile = append(c.MapOutputFile, args.FilePaths...)
-		if c.completedMapTask == c.nFile {
+		if c.completedMapTask == c.nFile-1 {
 			c.taskType = REDUCE_TASK
 		}
 	case REDUCE_TASK:
 		c.completedReduceTask++
 		c.ReduceOutputFile = append(c.ReduceOutputFile, args.FilePaths[0])
-		if c.completedMapTask == N_REDUCE {
+		if c.completedMapTask == N_REDUCE-1 {
 			c.taskType = DONE
-			c.Done()
+
 		}
 	}
 	c.Lock.Unlock()
 	return nil
-}
-
-/**
- * @name: initServer
- * @desc:
- * @param {*}
- * @return {*}
- */
-func (c *Coordinator) initServer() {
-
 }
 
 //
@@ -121,22 +111,24 @@ func (c *Coordinator) server() {
 // if the entire job has finished.
 //
 func (c *Coordinator) Done() bool {
-	ret := false
-
-	// Your code here.
-
-	return ret
+	return c.taskType == DONE
 }
 
-//
-// create a Coordinator.
-// main/mrcoordinator.go calls this function.
-// nReduce is the number of reduce tasks to use.
-//
+/**
+ * @name: MakeCoordinator
+ * @desc:
+ * @param {[]string} files
+ * @param {int} nReduce
+ * @return {*}
+ */
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
 	c.nFile = len(files)
 	c.QMapTask = make(chan MapTask, c.nFile)
+	c.QReduceTask = make(chan ReduceTask, REDUCE_TASK)
+	c.taskType = MAP_TASK
+	c.MapOutputFile = make([]string, c.nFile)
+	c.ReduceOutputFile = make([]string, N_REDUCE)
 
 	for i, file := range files {
 		c.QMapTask <- MapTask{i, file}
