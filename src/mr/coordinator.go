@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-19 17:34:15
+ * @LastEditTime: 2021-06-20 21:53:00
  */
 
 package mr
@@ -79,7 +79,12 @@ func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
 			c.taskType = REDUCE_TASK
 		}
 	case REDUCE_TASK:
-
+		c.completedReduceTask++
+		c.ReduceOutputFile = append(c.ReduceOutputFile, args.FilePaths[0])
+		if c.completedMapTask == N_REDUCE {
+			c.taskType = DONE
+			c.Done()
+		}
 	}
 	c.Lock.Unlock()
 	return nil
