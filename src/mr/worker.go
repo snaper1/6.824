@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-20 21:56:04
+ * @LastEditTime: 2021-06-20 23:28:21
  */
 
 package mr
@@ -119,13 +119,13 @@ func mapProcess(mapf func(string, string) []KeyValue, reply MrRpcReply) ([]strin
  * @return {*}
  */
 func reduceProcess(reducef func(string, []string) string, reply MrRpcReply) (string, bool) {
-	oname := fmt.Sprintf("mr-out-%v", reply.RTask.TaskSeqNum)
+	oname := fmt.Sprintf("l1OutPut/mr-out-%v", reply.RTask.TaskSeqNum)
 	ofile, _ := os.OpenFile(oname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
 
 	for i := 0; i < reply.RTask.MTaskNum; i++ {
 		//read file
 		intermediate := []KeyValue{}
-		filename := fmt.Sprintf("map-out-partition-%v-%v", i, reply.RTask.TaskSeqNum)
+		filename := fmt.Sprintf("l1OutPut/map-out-partition-%v-%v", i, reply.RTask.TaskSeqNum)
 		file, err := os.OpenFile(filename, os.O_RDONLY, 0777)
 		if err != nil {
 			log.Fatalf("cannot open %v", reply.MTask.Filename)
@@ -176,7 +176,7 @@ func writeIntoFile(kvs []KeyValue, fileSeqNum int) ([]string, bool) {
 	var outputFileNames []string
 	for _, kv := range kvs {
 		reduceSeqNum := ihash(kv.Key) % N_REDUCE
-		ofile := fmt.Sprintf("map-out-partition-%d-%d", fileSeqNum, reduceSeqNum)
+		ofile := fmt.Sprintf("l1OutPut/map-out-partition-%d-%d", fileSeqNum, reduceSeqNum)
 		f, _ := os.OpenFile(ofile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
 		enc := json.NewEncoder(f)
 		err := enc.Encode(kv)
