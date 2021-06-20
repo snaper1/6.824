@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-19 17:39:12
+ * @LastEditTime: 2021-06-20 18:04:05
  */
 
 package mr
@@ -15,6 +15,7 @@ import (
 	"log"
 	"net/rpc"
 	"os"
+	"sort"
 )
 
 //
@@ -58,6 +59,8 @@ func Worker(mapf func(string, string) []KeyValue,
 		case MAP_TASK:
 			outPutFiles, ok := mapProcess(mapf, reply)
 			if ok == true {
+				log.Printf("MapTask no.%d success!", reply.MTask.TaskSeqNum)
+
 				call("Coordinate.CompleteTask", &MrRpcArgs{reply.TaskType, outPutFiles, reply.MTask.TaskSeqNum}, &MrRpcReply{})
 
 			} else {
@@ -65,7 +68,15 @@ func Worker(mapf func(string, string) []KeyValue,
 			}
 
 		case REDUCE_TASK:
-			reduceProcess()
+			outPutFile, ok := reduceProcess(reducef, reply)
+			if ok == true {
+				call("Coordinate.CompleteTask", &MrRpcArgs{reply.TaskType, []string{outPutFile}, reply.RTask.TaskSeqNum}, &MrRpcReply{})
+
+			} else {
+				log.Printf("[ERROR] ReduceTask no.%d failed, redo work", reply.MTask.TaskSeqNum)
+
+			}
+
 		default:
 			return
 		}
@@ -98,28 +109,56 @@ func mapProcess(mapf func(string, string) []KeyValue, reply MrRpcReply) ([]strin
 }
 
 /**
- * @name: reduceProcess
+ * @name:
  * @desc:
  * @param {*} string
  * @param {*} string
  * @return {*}
  */
-func reduceProcess(reducef func(string, []string) string, reply MrRpcReply) {
-	intermediate := []KeyValue{}
-	for i := 0; i < reply.RTask.MTaskNum; i++ {
-		filename := fmt.Sprintf("map-out-partition-%v-%v", i, reply.RTask.TaskSeqNum)
-		file, err := os.Open(filename)
-		if err != nil {
-			log.Fatalf("cannot open %v", filename)
-		}
-		content, err := ioutil.ReadAll(file)
-		if err != nil {
-			log.Fatalf("cannot read %v", filename)
-		}
-		file.Close()
+func reduceProcess(reducef func(string, []string) string, reply MrRpcReply) (string, bool) {
+	oname := fmt.Sprintf("mr-out-%v", reply.RTask.TaskSeqNum)
+	ofile, _ := os.OpenFile(oname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
 
-		intermediate = append(intermediate, content...)
+	for i := 0; i < reply.RTask.MTaskNum; i++ {
+		//read file
+		intermediate := []KeyValue{}
+		filename := fmt.Sprintf("map-out-partition-%v-%v", i, reply.RTask.TaskSeqNum)
+		file, err := os.OpenFile(filename, os.O_RDONLY, 0777)
+		if err != nil {
+			log.Fatalf("cannot open %v", reply.MTask.Filename)
+		}
+		dec := json.NewDecoder(file)
+		for {
+			var kv KeyValue
+			if err := dec.Decode(&kv); err != nil {
+				break
+			}
+			intermediate = append(intermediate, kv)
+		}
+
+		file.Close()
+		sort.Sort(ByKey(intermediate))
+		//reduce
+		var values []string
+		values = append(values, intermediate[0].Value)
+		for j := 1; j < len(intermediate); j++ {
+			if intermediate[j].Key == intermediate[j-1].Key {
+				values = append(values, intermediate[j].Value)
+			} else {
+				output := reducef(intermediate[j-1].Key, values)
+				fmt.Fprintf(ofile, "%v %v\n", intermediate[j-1].Key, output)
+				values = values[0:0] //清空切片
+				values = append(values, intermediate[j].Value)
+			}
+		}
+		if len(values) != 0 {
+			length := len(intermediate)
+			output := reducef(intermediate[length-1].Key, values)
+			fmt.Fprintf(ofile, "%v %v\n", intermediate[length-1].Key, output)
+
+		}
 	}
+	return oname, true
 
 }
 
