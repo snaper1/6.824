@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-21 21:33:38
+ * @LastEditTime: 2021-06-21 21:55:20
  */
 
 package mr
@@ -43,6 +43,24 @@ type ReduceTask struct {
 }
 
 /**
+ * @name: RedoWork
+ * @desc:
+ * @param {*MrRpcArgs} args
+ * @param {*MrRpcReply} reply
+ * @return {*}
+ */
+func (c *Coordinator) RedoWork(args *MrRpcArgs, reply *MrRpcReply) bool {
+	switch args.TaskType {
+	case MAP_TASK:
+		c.QMapTask <- MapTask{args.TaskSeqNum, args.FilePaths[0]}
+	case REDUCE_TASK:
+		c.QReduceTask <- ReduceTask{args.TaskSeqNum, c.nFile, ""}
+	}
+	log.Printf("word %v re-add success\n", args.TaskSeqNum)
+	return true
+}
+
+/**
  * @name: SendTask
  * @desc: 请求任务
  * @param {*MrRpcArgs} args
@@ -50,24 +68,24 @@ type ReduceTask struct {
  * @return {*}
  */
 
-func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
+func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) bool {
 	c.Lock.Lock()
 	reply.TaskType = c.taskType
 	c.Lock.Unlock()
 	switch c.taskType {
 	case MAP_TASK:
 		if len(c.QMapTask) == 0 {
-			break
+			return false
 		}
 		reply.MTask = <-c.QMapTask
 	case REDUCE_TASK:
 		if len(c.QReduceTask) == 0 {
-			break
+			return false
 		}
 		reply.RTask = <-c.QReduceTask
 	}
 
-	return nil
+	return true
 }
 
 /**

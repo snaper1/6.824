@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-21 19:19:00
+ * @LastEditTime: 2021-06-21 21:53:57
  */
 
 package mr
@@ -65,6 +65,7 @@ func Worker(mapf func(string, string) []KeyValue,
 
 			} else {
 				log.Printf("[ERROR] MapTask no.%d failed, redo work", reply.MTask.TaskSeqNum)
+				call("Coordinator.RedoWork", &MrRpcArgs{reply.TaskType, []string{reply.MTask.Filename}, reply.MTask.TaskSeqNum}, &MrRpcReply{})
 			}
 
 		case REDUCE_TASK:
@@ -74,7 +75,8 @@ func Worker(mapf func(string, string) []KeyValue,
 				call("Coordinator.CompleteTask", &MrRpcArgs{reply.TaskType, []string{outPutFile}, reply.RTask.TaskSeqNum}, &MrRpcReply{})
 
 			} else {
-				log.Printf("[ERROR] ReduceTask no.%d failed, redo work", reply.MTask.TaskSeqNum)
+				log.Printf("[ERROR] ReduceTask no.%d failed, redo work", reply.RTask.TaskSeqNum)
+				call("Coordinator.RedoWork", &MrRpcArgs{reply.TaskType, []string{}, reply.RTask.TaskSeqNum}, &MrRpcArgs{})
 
 			}
 		case DONE:
@@ -138,8 +140,8 @@ func reduceProcess(reducef func(string, []string) string, reply MrRpcReply) (str
 			}
 			intermediate = append(intermediate, kv)
 		}
-
 		file.Close()
+		os.Remove(filename)
 		sort.Sort(ByKey(intermediate))
 		//reduce
 		var values []string
@@ -205,7 +207,7 @@ func getTask() MrRpcReply {
 	reply := MrRpcReply{}
 	ok := call("Coordinator.SendTask", &args, &reply)
 	if ok == false {
-		log.Print("[FATAL] call SendTask failed, work done")
+		log.Print("[ERROR] call SendTask failed, work done\n")
 		return MrRpcReply{}
 	}
 	return reply
