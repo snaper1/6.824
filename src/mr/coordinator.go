@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-20 22:24:33
+ * @LastEditTime: 2021-06-21 18:57:43
  */
 
 package mr
@@ -51,6 +51,7 @@ type ReduceTask struct {
  */
 
 func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
+	c.Lock.Lock()
 	switch c.taskType {
 	case MAP_TASK:
 		reply.TaskType = MAP_TASK
@@ -59,6 +60,7 @@ func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 		reply.TaskType = REDUCE_TASK
 		reply.RTask = <-c.QReduceTask
 	}
+	c.Lock.Unlock()
 	return nil
 }
 
