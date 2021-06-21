@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-20 23:28:21
+ * @LastEditTime: 2021-06-21 19:03:05
  */
 
 package mr
@@ -61,7 +61,7 @@ func Worker(mapf func(string, string) []KeyValue,
 			if ok == true {
 				log.Printf("MapTask no.%d success!", reply.MTask.TaskSeqNum)
 
-				call("Coordinate.CompleteTask", &MrRpcArgs{reply.TaskType, outPutFiles, reply.MTask.TaskSeqNum}, &MrRpcReply{})
+				call("Coordinator.CompleteTask", &MrRpcArgs{reply.TaskType, outPutFiles, reply.MTask.TaskSeqNum}, &MrRpcReply{})
 
 			} else {
 				log.Printf("[ERROR] MapTask no.%d failed, redo work", reply.MTask.TaskSeqNum)
@@ -71,7 +71,7 @@ func Worker(mapf func(string, string) []KeyValue,
 			outPutFile, ok := reduceProcess(reducef, reply)
 			if ok == true {
 				log.Printf("MapTask no.%d success!", reply.RTask.TaskSeqNum)
-				call("Coordinate.CompleteTask", &MrRpcArgs{reply.TaskType, []string{outPutFile}, reply.RTask.TaskSeqNum}, &MrRpcReply{})
+				call("Coordinator.CompleteTask", &MrRpcArgs{reply.TaskType, []string{outPutFile}, reply.RTask.TaskSeqNum}, &MrRpcReply{})
 
 			} else {
 				log.Printf("[ERROR] ReduceTask no.%d failed, redo work", reply.MTask.TaskSeqNum)
