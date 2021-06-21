@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-21 18:57:43
+ * @LastEditTime: 2021-06-21 20:20:26
  */
 
 package mr
@@ -52,15 +52,16 @@ type ReduceTask struct {
 
 func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 	c.Lock.Lock()
+	reply.TaskType = c.taskType
+	c.Lock.Unlock()
 	switch c.taskType {
 	case MAP_TASK:
-		reply.TaskType = MAP_TASK
 		reply.MTask = <-c.QMapTask
 	case REDUCE_TASK:
-		reply.TaskType = REDUCE_TASK
+
 		reply.RTask = <-c.QReduceTask
 	}
-	c.Lock.Unlock()
+
 	return nil
 }
 
@@ -113,7 +114,13 @@ func (c *Coordinator) server() {
 // if the entire job has finished.
 //
 func (c *Coordinator) Done() bool {
-	return c.taskType == DONE
+	ret := false
+	c.Lock.Lock()
+	if c.taskType == DONE {
+		ret = true
+	}
+	c.Lock.Unlock()
+	return ret
 }
 
 /**
