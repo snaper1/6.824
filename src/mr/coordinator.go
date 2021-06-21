@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-21 20:38:20
+ * @LastEditTime: 2021-06-21 20:43:23
  */
 
 package mr
@@ -56,15 +56,19 @@ func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 	c.Lock.Unlock()
 	switch c.taskType {
 	case MAP_TASK:
+		if len(c.QMapTask) == 0 {
+			break
+		}
 		reply.MTask = <-c.QMapTask
 	case REDUCE_TASK:
-
+		if len(c.QReduceTask) == 0 {
+			break
+		}
 		reply.RTask = <-c.QReduceTask
 	}
 
 	return nil
 }
-
 
 /**
  * @name: CompleteTask
