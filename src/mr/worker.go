@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-21 19:03:05
+ * @LastEditTime: 2021-06-21 19:19:00
  */
 
 package mr
@@ -70,7 +70,7 @@ func Worker(mapf func(string, string) []KeyValue,
 		case REDUCE_TASK:
 			outPutFile, ok := reduceProcess(reducef, reply)
 			if ok == true {
-				log.Printf("MapTask no.%d success!", reply.RTask.TaskSeqNum)
+				log.Printf("ReduceTask no.%d success!", reply.RTask.TaskSeqNum)
 				call("Coordinator.CompleteTask", &MrRpcArgs{reply.TaskType, []string{outPutFile}, reply.RTask.TaskSeqNum}, &MrRpcReply{})
 
 			} else {

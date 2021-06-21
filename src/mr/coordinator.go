@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-21 20:20:26
+ * @LastEditTime: 2021-06-21 20:38:20
  */
 
 package mr
@@ -65,6 +65,7 @@ func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 	return nil
 }
 
+
 /**
  * @name: CompleteTask
  * @desc: 任务完成，向协调器汇报
@@ -80,6 +81,9 @@ func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
 		c.MapOutputFile = append(c.MapOutputFile, args.FilePaths...)
 		if c.completedMapTask == c.nFile-1 {
 			c.taskType = REDUCE_TASK
+			for i := 0; i < N_REDUCE; i++ {
+				c.QReduceTask <- ReduceTask{i, c.nFile, ""}
+			}
 		}
 	case REDUCE_TASK:
 		c.completedReduceTask++
