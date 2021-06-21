@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-21 20:43:23
+ * @LastEditTime: 2021-06-21 21:33:38
  */
 
 package mr
@@ -92,7 +92,7 @@ func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
 	case REDUCE_TASK:
 		c.completedReduceTask++
 		c.ReduceOutputFile = append(c.ReduceOutputFile, args.FilePaths[0])
-		if c.completedMapTask == N_REDUCE-1 {
+		if c.completedReduceTask == N_REDUCE-1 {
 			c.taskType = DONE
 
 		}
@@ -142,7 +142,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
 	c.nFile = len(files)
 	c.QMapTask = make(chan MapTask, c.nFile)
-	c.QReduceTask = make(chan ReduceTask, REDUCE_TASK)
+	c.QReduceTask = make(chan ReduceTask, N_REDUCE)
 	c.taskType = MAP_TASK
 	c.MapOutputFile = make([]string, c.nFile)
 	c.ReduceOutputFile = make([]string, N_REDUCE)
