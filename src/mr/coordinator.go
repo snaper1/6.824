@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-26 01:17:38
+ * @LastEditTime: 2021-06-26 01:41:37
  */
 
 package mr
@@ -158,7 +158,8 @@ func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
  * @return {*}
  */
 func (c *Coordinator) monitor(task *TaskProccess, mapTaskQueue chan MapTask, reduceTaskQueue chan ReduceTask) {
-
+	for {
+	
 	select {
 	case done := <-task.Done:
 		if done == true {
@@ -177,6 +178,7 @@ func (c *Coordinator) monitor(task *TaskProccess, mapTaskQueue chan MapTask, red
 			}
 			return
 		}
+	}
 	}
 }
 
