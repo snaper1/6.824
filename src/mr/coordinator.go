@@ -2,12 +2,13 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-21 21:55:20
+ * @LastEditTime: 2021-06-25 14:11:33
  */
 
 package mr
 
 import (
+	"errors"
 	"log"
 	"net"
 	"net/http"
@@ -49,7 +50,7 @@ type ReduceTask struct {
  * @param {*MrRpcReply} reply
  * @return {*}
  */
-func (c *Coordinator) RedoWork(args *MrRpcArgs, reply *MrRpcReply) bool {
+func (c *Coordinator) RedoWork(args *MrRpcArgs, reply *MrRpcReply) error {
 	switch args.TaskType {
 	case MAP_TASK:
 		c.QMapTask <- MapTask{args.TaskSeqNum, args.FilePaths[0]}
@@ -57,7 +58,7 @@ func (c *Coordinator) RedoWork(args *MrRpcArgs, reply *MrRpcReply) bool {
 		c.QReduceTask <- ReduceTask{args.TaskSeqNum, c.nFile, ""}
 	}
 	log.Printf("word %v re-add success\n", args.TaskSeqNum)
-	return true
+	return nil
 }
 
 /**
@@ -68,24 +69,24 @@ func (c *Coordinator) RedoWork(args *MrRpcArgs, reply *MrRpcReply) bool {
  * @return {*}
  */
 
-func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) bool {
+func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 	c.Lock.Lock()
 	reply.TaskType = c.taskType
 	c.Lock.Unlock()
 	switch c.taskType {
 	case MAP_TASK:
 		if len(c.QMapTask) == 0 {
-			return false
+			return errors.New("MapTaskQueue is empty")
 		}
 		reply.MTask = <-c.QMapTask
 	case REDUCE_TASK:
 		if len(c.QReduceTask) == 0 {
-			return false
+			return errors.New("ReduceTaskQueue is empty")
 		}
 		reply.RTask = <-c.QReduceTask
 	}
 
-	return true
+	return nil
 }
 
 /**
