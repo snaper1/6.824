@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-26 01:09:35
+ * @LastEditTime: 2021-06-26 01:10:35
  */
 
 package mr
@@ -128,7 +128,7 @@ func reduceProcess(reducef func(string, []string) string, reply MrRpcReply) (str
 	for i := 0; i < reply.RTask.MTaskNum; i++ {
 		//read file
 
-		filename := fmt.Sprintf("map-out-partition-%v-%v", i, reply.RTask.TaskSeqNum)
+		filename := fmt.Sprintf("mr-%v-%v", i, reply.RTask.TaskSeqNum)
 		file, err := os.OpenFile(filename, os.O_RDONLY, 0777)
 		if err != nil {
 			log.Printf("[warning] cannot open %s", filename)
