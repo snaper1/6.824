@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-25 15:00:01
+ * @LastEditTime: 2021-06-25 16:15:51
  */
 
 package mr
@@ -207,9 +207,8 @@ func writeIntoFile(kvs []KeyValue, fileSeqNum int) ([]string, bool) {
 func getTask() MrRpcReply {
 	args := MrRpcArgs{}
 	reply := MrRpcReply{}
-	err := call("Coordinator.SendTask", &args, &reply)
-	if !err {
-		log.Print("[ERROR] call SendTask failed, work done\n")
+	ok := call("Coordinator.SendTask", &args, &reply)
+	if !ok {
 		return MrRpcReply{}
 	}
 	return reply
@@ -230,10 +229,9 @@ func call(rpcname string, args interface{}, reply interface{}) bool {
 	defer c.Close()
 
 	err = c.Call(rpcname, args, reply)
-	if err == nil {
-		return true
+	if err != nil {
+		log.Print("[WARNING] call %v error: %v\n", rpcname, err)
+		return false
 	}
-
-	fmt.Println(err)
-	return false
+	return true
 }
