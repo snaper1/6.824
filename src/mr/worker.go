@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-26 01:10:35
+ * @LastEditTime: 2021-06-26 01:20:35
  */
 
 package mr
@@ -102,7 +102,7 @@ func mapProcess(mapf func(string, string) []KeyValue, reply MrRpcReply) ([]strin
 
 	file, err := os.Open(reply.MTask.Filename)
 	if err != nil {
-		log.Printf("cannot open %s", reply.MTask.Filename)
+		//log.Printf("cannot open %s", reply.MTask.Filename)
 	}
 	content, err := ioutil.ReadAll(file)
 	if err != nil {
@@ -131,7 +131,7 @@ func reduceProcess(reducef func(string, []string) string, reply MrRpcReply) (str
 		filename := fmt.Sprintf("mr-%v-%v", i, reply.RTask.TaskSeqNum)
 		file, err := os.OpenFile(filename, os.O_RDONLY, 0777)
 		if err != nil {
-			log.Printf("[warning] cannot open %s", filename)
+			//log.Printf("[warning] cannot open %s", filename)
 			continue
 		}
 		dec := json.NewDecoder(file)
