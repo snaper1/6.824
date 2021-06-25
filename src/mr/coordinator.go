@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-25 16:41:21
+ * @LastEditTime: 2021-06-25 16:50:28
  */
 
 package mr
@@ -77,11 +77,13 @@ func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 	switch curTaskType {
 	case MAP_TASK:
 		if len(c.QMapTask) == 0 {
+			reply.TaskType = TIME_WAIT
 			return errors.New("MapTaskQueue is empty")
 		}
 		reply.MTask = <-c.QMapTask
 	case REDUCE_TASK:
 		if len(c.QReduceTask) == 0 {
+			reply.TaskType = TIME_WAIT
 			return errors.New("ReduceTaskQueue is empty")
 		}
 		reply.RTask = <-c.QReduceTask
