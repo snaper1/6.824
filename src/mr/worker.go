@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-21 21:53:57
+ * @LastEditTime: 2021-06-25 14:39:40
  */
 
 package mr
@@ -182,6 +182,7 @@ func writeIntoFile(kvs []KeyValue, fileSeqNum int) ([]string, bool) {
 		f, _ := os.OpenFile(ofile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
 		enc := json.NewEncoder(f)
 		err := enc.Encode(kv)
+
 		f.Close()
 		if err != nil {
 			log.Printf("[ERROR] MapWorker no.%d write error , %s", fileSeqNum, err)
@@ -205,8 +206,8 @@ func writeIntoFile(kvs []KeyValue, fileSeqNum int) ([]string, bool) {
 func getTask() MrRpcReply {
 	args := MrRpcArgs{}
 	reply := MrRpcReply{}
-	ok := call("Coordinator.SendTask", &args, &reply)
-	if ok == false {
+	err := call("Coordinator.SendTask", &args, &reply)
+	if !err {
 		log.Print("[ERROR] call SendTask failed, work done\n")
 		return MrRpcReply{}
 	}

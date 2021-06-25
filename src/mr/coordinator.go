@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-25 14:11:33
+ * @LastEditTime: 2021-06-25 14:44:56
  */
 
 package mr
@@ -102,7 +102,7 @@ func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
 	case MAP_TASK:
 		c.completedMapTask++
 		c.MapOutputFile = append(c.MapOutputFile, args.FilePaths...)
-		if c.completedMapTask == c.nFile-1 {
+		if c.completedMapTask == c.nFile {
 			c.taskType = REDUCE_TASK
 			for i := 0; i < N_REDUCE; i++ {
 				c.QReduceTask <- ReduceTask{i, c.nFile, ""}
@@ -111,7 +111,7 @@ func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
 	case REDUCE_TASK:
 		c.completedReduceTask++
 		c.ReduceOutputFile = append(c.ReduceOutputFile, args.FilePaths[0])
-		if c.completedReduceTask == N_REDUCE-1 {
+		if c.completedReduceTask == N_REDUCE {
 			c.taskType = DONE
 
 		}
