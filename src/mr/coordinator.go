@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-26 01:07:22
+ * @LastEditTime: 2021-06-26 01:14:50
  */
 
 package mr
@@ -94,7 +94,9 @@ func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 		}
 		task := <-c.QMapTask
 		reply.MTask = task
+		c.Lock.Lock()
 		c.MMapProccess[task.TaskSeqNum] = &TaskProccess{MAP_TASK, time.Now().Unix(), make(chan bool, 1), task, ReduceTask{}}
+		c.Lock.Unlock()
 		go c.monitor(c.MMapProccess[task.TaskSeqNum], c.QMapTask, c.QReduceTask)
 	case REDUCE_TASK:
 		if len(c.QReduceTask) == 0 {
@@ -103,7 +105,9 @@ func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 		}
 		task := <-c.QReduceTask
 		reply.RTask = task
+		c.Lock.Lock()
 		c.MReduceProccess[task.TaskSeqNum] = &TaskProccess{REDUCE_TASK, time.Now().Unix(), make(chan bool, 1), MapTask{}, task}
+		c.Lock.Unlock()
 		go c.monitor(c.MReduceProccess[task.TaskSeqNum], c.QMapTask, c.QReduceTask)
 	}
 
