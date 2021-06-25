@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-25 14:39:40
+ * @LastEditTime: 2021-06-25 15:00:01
  */
 
 package mr
@@ -123,10 +123,10 @@ func mapProcess(mapf func(string, string) []KeyValue, reply MrRpcReply) ([]strin
 func reduceProcess(reducef func(string, []string) string, reply MrRpcReply) (string, bool) {
 	oname := fmt.Sprintf("l1OutPut/mr-out-%v", reply.RTask.TaskSeqNum)
 	ofile, _ := os.OpenFile(oname, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
-
+	intermediate := []KeyValue{}
 	for i := 0; i < reply.RTask.MTaskNum; i++ {
 		//read file
-		intermediate := []KeyValue{}
+
 		filename := fmt.Sprintf("l1OutPut/map-out-partition-%v-%v", i, reply.RTask.TaskSeqNum)
 		file, err := os.OpenFile(filename, os.O_RDONLY, 0777)
 		if err != nil {
@@ -142,26 +142,27 @@ func reduceProcess(reducef func(string, []string) string, reply MrRpcReply) (str
 		}
 		file.Close()
 		os.Remove(filename)
-		sort.Sort(ByKey(intermediate))
-		//reduce
-		var values []string
-		values = append(values, intermediate[0].Value)
-		for j := 1; j < len(intermediate); j++ {
-			if intermediate[j].Key == intermediate[j-1].Key {
-				values = append(values, intermediate[j].Value)
-			} else {
-				output := reducef(intermediate[j-1].Key, values)
-				fmt.Fprintf(ofile, "%v %v\n", intermediate[j-1].Key, output)
-				values = values[0:0] //清空切片
-				values = append(values, intermediate[j].Value)
-			}
-		}
-		if len(values) != 0 {
-			length := len(intermediate)
-			output := reducef(intermediate[length-1].Key, values)
-			fmt.Fprintf(ofile, "%v %v\n", intermediate[length-1].Key, output)
 
+	}
+	sort.Sort(ByKey(intermediate))
+	//reduce
+	var values []string
+	values = append(values, intermediate[0].Value)
+	for j := 1; j < len(intermediate); j++ {
+		if intermediate[j].Key == intermediate[j-1].Key {
+			values = append(values, intermediate[j].Value)
+		} else {
+			output := reducef(intermediate[j-1].Key, values)
+			fmt.Fprintf(ofile, "%v %v\n", intermediate[j-1].Key, output)
+			values = values[0:0] //清空切片
+			values = append(values, intermediate[j].Value)
 		}
+	}
+	if len(values) != 0 {
+		length := len(intermediate)
+		output := reducef(intermediate[length-1].Key, values)
+		fmt.Fprintf(ofile, "%v %v\n", intermediate[length-1].Key, output)
+
 	}
 	return oname, true
 
