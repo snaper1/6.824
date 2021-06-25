@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-26 01:14:50
+ * @LastEditTime: 2021-06-26 01:17:38
  */
 
 package mr
@@ -96,8 +96,8 @@ func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 		reply.MTask = task
 		c.Lock.Lock()
 		c.MMapProccess[task.TaskSeqNum] = &TaskProccess{MAP_TASK, time.Now().Unix(), make(chan bool, 1), task, ReduceTask{}}
-		c.Lock.Unlock()
 		go c.monitor(c.MMapProccess[task.TaskSeqNum], c.QMapTask, c.QReduceTask)
+		c.Lock.Unlock()
 	case REDUCE_TASK:
 		if len(c.QReduceTask) == 0 {
 			reply.TaskType = TIME_WAIT
@@ -107,8 +107,9 @@ func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 		reply.RTask = task
 		c.Lock.Lock()
 		c.MReduceProccess[task.TaskSeqNum] = &TaskProccess{REDUCE_TASK, time.Now().Unix(), make(chan bool, 1), MapTask{}, task}
-		c.Lock.Unlock()
+
 		go c.monitor(c.MReduceProccess[task.TaskSeqNum], c.QMapTask, c.QReduceTask)
+		c.Lock.Unlock()
 	}
 
 	return nil
