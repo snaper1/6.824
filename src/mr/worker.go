@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-25 16:15:51
+ * @LastEditTime: 2021-06-25 16:46:24
  */
 
 package mr
@@ -16,6 +16,7 @@ import (
 	"net/rpc"
 	"os"
 	"sort"
+	"time"
 )
 
 //
@@ -83,7 +84,7 @@ func Worker(mapf func(string, string) []KeyValue,
 			return
 
 		default:
-			continue
+			time.Sleep(time.Millisecond)
 		}
 
 	}
@@ -230,7 +231,7 @@ func call(rpcname string, args interface{}, reply interface{}) bool {
 
 	err = c.Call(rpcname, args, reply)
 	if err != nil {
-		log.Print("[WARNING] call %v error: %v\n", rpcname, err)
+		log.Printf("[WARNING] call %v error: %v\n", rpcname, err)
 		return false
 	}
 	return true
