@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-25 14:44:56
+ * @LastEditTime: 2021-06-25 16:03:36
  */
 
 package mr
@@ -71,9 +71,10 @@ func (c *Coordinator) RedoWork(args *MrRpcArgs, reply *MrRpcReply) error {
 
 func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 	c.Lock.Lock()
-	reply.TaskType = c.taskType
+	curTaskType := c.taskType
 	c.Lock.Unlock()
-	switch c.taskType {
+	reply.TaskType = curTaskType
+	switch curTaskType {
 	case MAP_TASK:
 		if len(c.QMapTask) == 0 {
 			return errors.New("MapTaskQueue is empty")
