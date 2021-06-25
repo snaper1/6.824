@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-26 01:03:57
+ * @LastEditTime: 2021-06-26 01:07:22
  */
 
 package mr
@@ -94,7 +94,7 @@ func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 		}
 		task := <-c.QMapTask
 		reply.MTask = task
-		c.MMapProccess[task.TaskSeqNum] = &TaskProccess{MAP_TASK, time.Now().Unix(), false, task, ReduceTask{}}
+		c.MMapProccess[task.TaskSeqNum] = &TaskProccess{MAP_TASK, time.Now().Unix(), make(chan bool, 1), task, ReduceTask{}}
 		go c.monitor(c.MMapProccess[task.TaskSeqNum], c.QMapTask, c.QReduceTask)
 	case REDUCE_TASK:
 		if len(c.QReduceTask) == 0 {
@@ -103,7 +103,7 @@ func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 		}
 		task := <-c.QReduceTask
 		reply.RTask = task
-		c.MReduceProccess[task.TaskSeqNum] = &TaskProccess{REDUCE_TASK, time.Now().Unix(), false, MapTask{}, task}
+		c.MReduceProccess[task.TaskSeqNum] = &TaskProccess{REDUCE_TASK, time.Now().Unix(), make(chan bool, 1), MapTask{}, task}
 		go c.monitor(c.MReduceProccess[task.TaskSeqNum], c.QMapTask, c.QReduceTask)
 	}
 
@@ -123,7 +123,7 @@ func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
 	case MAP_TASK:
 
 		c.completedMapTask++
-		c.MMapProccess[args.TaskSeqNum].Done = true
+		c.MMapProccess[args.TaskSeqNum].Done <- true
 		c.MapOutputFile = append(c.MapOutputFile, args.FilePaths...)
 		if c.completedMapTask == c.nFile {
 			c.taskType = REDUCE_TASK
@@ -133,7 +133,7 @@ func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
 		}
 	case REDUCE_TASK:
 		c.completedReduceTask++
-		c.MReduceProccess[args.TaskSeqNum].Done = true
+		c.MReduceProccess[args.TaskSeqNum].Done <- true
 		c.ReduceOutputFile = append(c.ReduceOutputFile, args.FilePaths[0])
 		if c.completedReduceTask == N_REDUCE {
 			c.taskType = DONE
