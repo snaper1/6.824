@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-25 16:50:28
+ * @LastEditTime: 2021-06-25 23:39:30
  */
 
 package mr
@@ -15,6 +15,7 @@ import (
 	"net/rpc"
 	"os"
 	"sync"
+	"time"
 )
 
 //程序master，协调器，负责分发委派任务
@@ -25,9 +26,11 @@ type Coordinator struct {
 	completedReduceTask int             //完成的reduce任务数量
 	QMapTask            chan MapTask    //保存Map任务，即文件路径，因为存在并发所以使用chan保存
 	QReduceTask         chan ReduceTask //保存reduce任务，即文件路径，因为存在并发所以使用chan保存
-	MapOutputFile       []string        //map任务输出的文件
-	ReduceOutputFile    []string        //reduce任务输出的文件
-	Lock                sync.Mutex      //互斥锁，保证协调器在工作时的线程安全性
+	MMapProccess        map[int]*TaskProccess
+	MReduceProccess     map[int]*TaskProccess
+	MapOutputFile       []string   //map任务输出的文件
+	ReduceOutputFile    []string   //reduce任务输出的文件
+	Lock                sync.Mutex //互斥锁，保证协调器在工作时的线程安全性
 }
 
 //map任务类
@@ -41,6 +44,16 @@ type ReduceTask struct {
 	TaskSeqNum int //任务序号
 	MTaskNum   int
 	Filename   string //任务路径
+}
+
+//任务监控类
+type TaskProccess struct {
+	TaskType   int
+	ExpireTime int64
+	Done       bool
+
+	MTask MapTask
+	RTask ReduceTask
 }
 
 /**
@@ -80,13 +93,19 @@ func (c *Coordinator) SendTask(args *MrRpcArgs, reply *MrRpcReply) error {
 			reply.TaskType = TIME_WAIT
 			return errors.New("MapTaskQueue is empty")
 		}
-		reply.MTask = <-c.QMapTask
+		task := <-c.QMapTask
+		reply.MTask = task
+		c.MMapProccess[task.TaskSeqNum] = &TaskProccess{MAP_TASK, time.Now().Unix(), false, task, ReduceTask{}}
+		go c.monitor(c.MMapProccess[task.TaskSeqNum], c.QMapTask, c.QReduceTask)
 	case REDUCE_TASK:
 		if len(c.QReduceTask) == 0 {
 			reply.TaskType = TIME_WAIT
 			return errors.New("ReduceTaskQueue is empty")
 		}
-		reply.RTask = <-c.QReduceTask
+		task := <-c.QReduceTask
+		reply.RTask = task
+		c.MReduceProccess[task.TaskSeqNum] = &TaskProccess{REDUCE_TASK, time.Now().Unix(), false, MapTask{}, task}
+		go c.monitor(c.MReduceProccess[task.TaskSeqNum], c.QMapTask, c.QReduceTask)
 	}
 
 	return nil
@@ -103,7 +122,9 @@ func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
 	c.Lock.Lock()
 	switch args.TaskType {
 	case MAP_TASK:
+
 		c.completedMapTask++
+		c.MMapProccess[args.TaskSeqNum].Done = true
 		c.MapOutputFile = append(c.MapOutputFile, args.FilePaths...)
 		if c.completedMapTask == c.nFile {
 			c.taskType = REDUCE_TASK
@@ -113,6 +134,7 @@ func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
 		}
 	case REDUCE_TASK:
 		c.completedReduceTask++
+		c.MReduceProccess[args.TaskSeqNum].Done = true
 		c.ReduceOutputFile = append(c.ReduceOutputFile, args.FilePaths[0])
 		if c.completedReduceTask == N_REDUCE {
 			c.taskType = DONE
@@ -121,6 +143,37 @@ func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
 	}
 	c.Lock.Unlock()
 	return nil
+}
+
+/**
+ * @name:
+ * @desc:
+ * @param {TaskProccess} task
+ * @param {chanMapTask} mapTaskQueue
+ * @param {chanReduceTask} reduceTaskQueue
+ * @return {*}
+ */
+func (c *Coordinator) monitor(task *TaskProccess, mapTaskQueue chan MapTask, reduceTaskQueue chan ReduceTask) {
+
+	for {
+		c.Lock.Lock()
+		if task.Done == true {
+			return
+		}
+		c.Lock.Unlock()
+		curTime := time.Now().Unix()
+		if curTime-task.ExpireTime >= MAX_TIME {
+			switch task.TaskType {
+			case MAP_TASK:
+				mapTaskQueue <- task.MTask
+				log.Printf("[INFO] MapTask %d TimeOut (maybe crash), redo file: %s", task.MTask.TaskSeqNum, task.MTask.Filename)
+			case REDUCE_TASK:
+				reduceTaskQueue <- task.RTask
+				log.Printf("[INFO] ReduceTask %d TimeOut (maybe crash), redo file: %s", task.RTask.TaskSeqNum, task.RTask.Filename)
+			}
+			return
+		}
+	}
 }
 
 //
