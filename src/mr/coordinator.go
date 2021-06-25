@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:17
- * @LastEditTime: 2021-06-25 23:49:47
+ * @LastEditTime: 2021-06-26 01:03:57
  */
 
 package mr
@@ -50,10 +50,9 @@ type ReduceTask struct {
 type TaskProccess struct {
 	TaskType   int
 	ExpireTime int64
-	Done       bool
-
-	MTask MapTask
-	RTask ReduceTask
+	Done       chan bool
+	MTask      MapTask
+	RTask      ReduceTask
 }
 
 /**
@@ -155,12 +154,12 @@ func (c *Coordinator) CompleteTask(args *MrRpcArgs, reply *MrRpcReply) error {
  */
 func (c *Coordinator) monitor(task *TaskProccess, mapTaskQueue chan MapTask, reduceTaskQueue chan ReduceTask) {
 
-	for {
-		c.Lock.Lock()
-		if task.Done == true {
+	select {
+	case done := <-task.Done:
+		if done == true {
 			return
 		}
-		c.Lock.Unlock()
+	default:
 		curTime := time.Now().Unix()
 		if curTime-task.ExpireTime >= MAX_TIME {
 			switch task.TaskType {
