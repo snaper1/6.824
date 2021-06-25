@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:18
- * @LastEditTime: 2021-06-25 23:42:56
+ * @LastEditTime: 2021-06-26 01:09:35
  */
 
 package mr
@@ -145,6 +145,9 @@ func reduceProcess(reducef func(string, []string) string, reply MrRpcReply) (str
 		file.Close()
 		os.Remove(filename)
 
+	}
+	if len(intermediate) == 0 {
+		return oname, true
 	}
 	sort.Sort(ByKey(intermediate))
 	//reduce
