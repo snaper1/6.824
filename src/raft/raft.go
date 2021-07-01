@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-01 19:41:30
+ * @LastEditTime: 2021-07-01 20:36:59
  */
 
 package raft
@@ -67,9 +67,9 @@ type Raft struct {
 	dead          int32               // set by Kill()
 	heartBeatTime int64
 	//need persist
-	term    int
-	voteFor int
-	logs    []Log
+	currentTerm int
+	voteFor     int
+	logs        []Log
 
 	commitIndex int
 	lastApplied int
@@ -172,12 +172,12 @@ type RequestVoteReply struct {
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
-	if args.Term <= rf.term {
-		reply.Term = rf.term
+	if args.Term <= rf.currentTerm {
+		reply.Term = rf.currentTerm
 		reply.VoteGranted = false
 
 	} else {
-		rf.term = args.Term
+		rf.currentTerm = args.Term
 		rf.voteFor = args.CandidateId
 
 	}
@@ -264,12 +264,19 @@ func (rf *Raft) killed() bool {
 }
 
 // The ticker go routine starts a new election if this peer hasn't received
-// heartsbeats recently.
+// heartsbeats recently
 func (rf *Raft) ticker() {
+
 	for rf.killed() == false {
 		curTime := time.Now().UnixNano() / 1e6 //毫秒
 		randTime := rand.Intn(150) + 150       //150ms-300ms的范围
 		if curTime-rf.heartBeatTime > int64(randTime) {
+			for server := 0; server < len(rf.peers); server++ {
+				if server == rf.me {
+					continue
+				}
+				rf.sendRequestVote(server, &RequestVoteArgs{}, &RequestVoteReply{})
+			}
 
 		}
 		time.Sleep(time.Microsecond * time.Duration(randTime))
@@ -293,6 +300,12 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.peers = peers
 	rf.persister = persister
 	rf.me = me
+	rf.heartBeatTime = time.Now().UnixNano() / 1e6
+	rf.currentTerm = 0
+	rf.voteFor = -1
+	rf.logs = make([]Log, 0)
+	rf.matchIndex = make([]int, 0)
+	rf.nextIndex = make([]int, 0)
 
 	// Your initialization code here (2A, 2B, 2C).
 
