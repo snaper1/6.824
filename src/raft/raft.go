@@ -1,10 +1,12 @@
+/*
+ * @Description:
+ * @User: Snaper <532990528@qq.com>
+ * @Date: 2021-06-16 12:25:21
+ * @LastEditTime: 2021-07-01 19:41:30
+ */
+
 package raft
 
-//
-// this is an outline of the API that raft must expose to
-// the service (or tester). see comments below for
-// each of these functions for more details.
-//
 // rf = Make(...)
 //   create a new Raft server.
 // rf.Start(command interface{}) (index, term, isleader)
@@ -18,14 +20,15 @@ package raft
 //
 
 import (
-//	"bytes"
+	//	"bytes"
+	"math/rand"
 	"sync"
 	"sync/atomic"
+	"time"
 
-//	"6.824/labgob"
+	//	"6.824/labgob"
 	"6.824/labrpc"
 )
-
 
 //
 // as each Raft peer becomes aware that successive log entries are
@@ -50,20 +53,31 @@ type ApplyMsg struct {
 	SnapshotIndex int
 }
 
-//
-// A Go object implementing a single Raft peer.
-//
+type Log struct {
+	term    int
+	Command interface{}
+}
+
+//raft struct
 type Raft struct {
-	mu        sync.Mutex          // Lock to protect shared access to this peer's state
-	peers     []*labrpc.ClientEnd // RPC end points of all peers
-	persister *Persister          // Object to hold this peer's persisted state
-	me        int                 // this peer's index into peers[]
-	dead      int32               // set by Kill()
+	mu            sync.Mutex          // Lock to protect shared access to this peer's state
+	peers         []*labrpc.ClientEnd // RPC end points of all peers
+	persister     *Persister          // Object to hold this peer's persisted state
+	me            int                 // this peer's index into peers[]
+	dead          int32               // set by Kill()
+	heartBeatTime int64
+	//need persist
+	term    int
+	voteFor int
+	logs    []Log
+
+	commitIndex int
+	lastApplied int
+	nextIndex   []int
+	matchIndex  []int
 
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
-	// state a Raft server must maintain.
-
 }
 
 // return currentTerm and whether this server
@@ -92,7 +106,6 @@ func (rf *Raft) persist() {
 	// rf.persister.SaveRaftState(data)
 }
 
-
 //
 // restore previously persisted state.
 //
@@ -115,7 +128,6 @@ func (rf *Raft) readPersist(data []byte) {
 	// }
 }
 
-
 //
 // A service wants to switch to snapshot.  Only do so if Raft hasn't
 // have more recent info since it communicate the snapshot on applyCh.
@@ -136,28 +148,40 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 
 }
 
-
 //
-// example RequestVote RPC arguments structure.
-// field names must start with capital letters!
+// RequestVote RPC arguments structure.
 //
 type RequestVoteArgs struct {
-	// Your data here (2A, 2B).
+	Term         int
+	CandidateId  int
+	LastLogIndex int
+	LastLogTerm  int
 }
 
 //
-// example RequestVote RPC reply structure.
-// field names must start with capital letters!
+// RequestVote RPC reply structure.
 //
 type RequestVoteReply struct {
-	// Your data here (2A).
+	Term        int
+	VoteGranted bool
 }
 
 //
-// example RequestVote RPC handler.
+// RequestVote RPC handler.
 //
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
-	// Your code here (2A, 2B).
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	if args.Term <= rf.term {
+		reply.Term = rf.term
+		reply.VoteGranted = false
+
+	} else {
+		rf.term = args.Term
+		rf.voteFor = args.CandidateId
+
+	}
+	return
 }
 
 //
@@ -194,7 +218,6 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 	return ok
 }
 
-
 //
 // the service using Raft (e.g. a k/v server) wants to start
 // agreement on the next command to be appended to Raft's log. if this
@@ -215,7 +238,6 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	isLeader := true
 
 	// Your code here (2B).
-
 
 	return index, term, isLeader
 }
@@ -245,11 +267,12 @@ func (rf *Raft) killed() bool {
 // heartsbeats recently.
 func (rf *Raft) ticker() {
 	for rf.killed() == false {
+		curTime := time.Now().UnixNano() / 1e6 //毫秒
+		randTime := rand.Intn(150) + 150       //150ms-300ms的范围
+		if curTime-rf.heartBeatTime > int64(randTime) {
 
-		// Your code here to check if a leader election should
-		// be started and to randomize sleeping time using
-		// time.Sleep().
-
+		}
+		time.Sleep(time.Microsecond * time.Duration(randTime))
 	}
 }
 
@@ -278,7 +301,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	// start ticker goroutine to start elections
 	go rf.ticker()
-
 
 	return rf
 }
