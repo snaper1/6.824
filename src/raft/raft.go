@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-02 21:10:42
+ * @LastEditTime: 2021-07-02 21:57:18
  */
 
 package raft
@@ -212,14 +212,22 @@ type AppendEntriesRply struct {
 // RequestVote RPC handler.
 //
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
+	voteFor := atomic.LoadInt32(&rf.voteFor)
+	if voteFor != -1 {
+		reply.VoteGranted = false
+	}
 	curTerm := atomic.LoadInt32(&rf.currentTerm)
 	if args.Term <= curTerm {
 		reply.Term = curTerm
 		reply.VoteGranted = false
 
 	} else {
+		if rf.IsState(CANDIDATE) {
+			rf.ChangeState(FOLLOWER)
+		}
 		atomic.StoreInt32(&rf.currentTerm, args.Term)
 		atomic.StoreInt32(&rf.voteFor, int32(args.CandidateId))
+		reply.VoteGranted = true
 
 	}
 	return
@@ -265,6 +273,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesRply)
 		reply.Success = false
 		return
 	}
+	atomic.StoreInt64(&rf.heartBeatTime, time.Now().UnixNano()/1e6)
 	atomic.StoreInt32(&rf.currentTerm, args.Term)
 	reply.Success = true
 
@@ -365,10 +374,14 @@ func (rf *Raft) voting() {
 				Term:        curTerm,
 				CandidateId: rf.me,
 			}
-			rep := RequestVoteReply{}
+			rep := RequestVoteReply{
+				VoteGranted: false,
+			}
 			if rf.sendRequestVote(server, &args, &rep) && rep.VoteGranted {
 				atomic.AddInt32(&rf.voteCount, 1)
 
+			} else if rep.VoteGranted == true && rep.Term > curTerm {
+				atomic.StoreInt32(&rf.currentTerm, rep.Term)
 			}
 		}(server)
 
@@ -436,6 +449,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.peerCount = len(peers)
 	rf.state = FOLLOWER
 	rf.currentTerm = 0
+	rf.dead = 0
 
 	// Your initialization code here (2A, 2B, 2C).
 
