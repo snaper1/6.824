@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-02 21:57:18
+ * @LastEditTime: 2021-07-02 21:58:42
  */
 
 package raft
@@ -416,7 +416,7 @@ func (rf *Raft) ticker() {
 		}
 		rf.voting()
 		votes := atomic.LoadInt32(&rf.voteCount)
-		if votes >= rf.voteCount/2 {
+		if votes >= int32(rf.peerCount)/2 {
 
 			rf.Leading()
 		}
