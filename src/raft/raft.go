@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-01 20:36:59
+ * @LastEditTime: 2021-07-02 13:50:06
  */
 
 package raft
@@ -60,14 +60,19 @@ type Log struct {
 
 //raft struct
 type Raft struct {
-	mu            sync.Mutex          // Lock to protect shared access to this peer's state
-	peers         []*labrpc.ClientEnd // RPC end points of all peers
-	persister     *Persister          // Object to hold this peer's persisted state
-	me            int                 // this peer's index into peers[]
-	dead          int32               // set by Kill()
-	heartBeatTime int64
+	mu             sync.Mutex // Lock to protect shared access to this peer's state
+	cond           *sync.Cond
+	peers          []*labrpc.ClientEnd // RPC end points of all peers
+	persister      *Persister          // Object to hold this peer's persisted state
+	me             int                 // this peer's index into peers[]
+	dead           int32               // set by Kill()
+	voteCount      int
+	heartBeatTime  int64
+	heartBeatState int32
+
 	//need persist
-	currentTerm int
+	state       int32
+	currentTerm int32
 	voteFor     int
 	logs        []Log
 
@@ -78,6 +83,30 @@ type Raft struct {
 
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
+}
+
+/**
+ * @name: IsState
+ * @desc: 判断rf是否状态为state，使用atomic 并发安全
+ * @param {int32} state
+ * @return {*}
+ */
+func (rf *Raft) IsState(state int32) bool {
+	return atomic.LoadInt32(&rf.state) == state
+}
+
+/**
+ * @name:
+ * @desc: 判断rf的状态，使用atomic 并发安全
+ * @param {int32} state
+ * @return {*}
+ */
+func (rf *Raft) ChangeState(state int32) {
+	atomic.StoreInt32(&rf.state, state)
+}
+
+func (rf *Raft) IsHeartBeatDead() bool {
+	return atomic.LoadInt32(&rf.heartBeatState) == HEARTBEAT_DEAD
 }
 
 // return currentTerm and whether this server
@@ -152,7 +181,7 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 // RequestVote RPC arguments structure.
 //
 type RequestVoteArgs struct {
-	Term         int
+	Term         int32
 	CandidateId  int
 	LastLogIndex int
 	LastLogTerm  int
@@ -162,8 +191,13 @@ type RequestVoteArgs struct {
 // RequestVote RPC reply structure.
 //
 type RequestVoteReply struct {
-	Term        int
+	Term        int32
 	VoteGranted bool
+}
+
+type AppendEntriesArgs struct {
+}
+type AppendEntriesRply struct {
 }
 
 //
@@ -218,6 +252,14 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 	return ok
 }
 
+func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesRply) {
+
+}
+func (rf *Raft) SendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesRply) bool {
+	ok := rf.peers[server].Call("Raft.AppendEntries", args, reply)
+	return ok
+}
+
 //
 // the service using Raft (e.g. a k/v server) wants to start
 // agreement on the next command to be appended to Raft's log. if this
@@ -263,23 +305,46 @@ func (rf *Raft) killed() bool {
 	return z == 1
 }
 
+/**
+ * @name: voting
+ * @desc:
+ * @param {*}
+ * @return {*}
+ */
+func (rf *Raft) voting() {
+	for server := 0; server < len(rf.peers); server++ {
+		if server == rf.me {
+			continue
+		}
+		go func(server int) {
+			args := RequestVoteArgs{}
+			rep := RequestVoteReply{}
+			if rf.sendRequestVote(server, &args, &rep) && rep.VoteGranted {
+
+			}
+		}(server)
+
+	}
+
+}
+
 // The ticker go routine starts a new election if this peer hasn't received
 // heartsbeats recently
 func (rf *Raft) ticker() {
 
 	for rf.killed() == false {
-		curTime := time.Now().UnixNano() / 1e6 //毫秒
-		randTime := rand.Intn(150) + 150       //150ms-300ms的范围
-		if curTime-rf.heartBeatTime > int64(randTime) {
-			for server := 0; server < len(rf.peers); server++ {
-				if server == rf.me {
-					continue
-				}
-				rf.sendRequestVote(server, &RequestVoteArgs{}, &RequestVoteReply{})
-			}
-
+		for !rf.IsHeartBeatDead() {
+			time.Sleep(time.Microsecond*100)
+		}
+		randTime := rand.Intn(150) + 150 //150ms-300ms的范围
+		if rf.IsState(FOLLOWER) {
+			rf.ChangeState(CANDIDATE)
 		}
 		time.Sleep(time.Microsecond * time.Duration(randTime))
+		if !rf.IsState(CANDIDATE) {
+			continue
+		}
+		rf.voting()
 	}
 }
 
@@ -306,6 +371,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.logs = make([]Log, 0)
 	rf.matchIndex = make([]int, 0)
 	rf.nextIndex = make([]int, 0)
+	rf.cond = sync.NewCond(&rf.mu)
 
 	// Your initialization code here (2A, 2B, 2C).
 
