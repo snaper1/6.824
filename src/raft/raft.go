@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-02 21:01:19
+ * @LastEditTime: 2021-07-02 21:09:24
  */
 
 package raft
@@ -205,7 +205,7 @@ type AppendEntriesArgs struct {
 }
 type AppendEntriesRply struct {
 	Term    int32
-	success bool
+	Success bool
 }
 
 //
@@ -262,11 +262,11 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesRply) {
 	curTerm := atomic.LoadInt32(&rf.currentTerm)
 	if args.Term < curTerm {
-		reply.success = false
+		reply.Success = false
 		return
 	}
 	atomic.StoreInt32(&rf.currentTerm, args.Term)
-	reply.success = true
+	reply.Success = true
 
 }
 func (rf *Raft) SendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesRply) bool {
@@ -334,7 +334,7 @@ func (rf *Raft) Leading() {
 				if !ok {
 					continue
 				}
-				if rep.success == false {
+				if rep.Success == false {
 					rf.ChangeState(FOLLOWER)
 					return
 				}
