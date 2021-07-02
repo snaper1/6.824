@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-02 13:50:06
+ * @LastEditTime: 2021-07-02 20:40:48
  */
 
 package raft
@@ -60,20 +60,20 @@ type Log struct {
 
 //raft struct
 type Raft struct {
-	mu             sync.Mutex // Lock to protect shared access to this peer's state
-	cond           *sync.Cond
+	mu             sync.Mutex          // Lock to protect shared access to this peer's state
 	peers          []*labrpc.ClientEnd // RPC end points of all peers
 	persister      *Persister          // Object to hold this peer's persisted state
 	me             int                 // this peer's index into peers[]
 	dead           int32               // set by Kill()
-	voteCount      int
+	voteCount      int32
 	heartBeatTime  int64
 	heartBeatState int32
+	peerCount      int
 
 	//need persist
 	state       int32
 	currentTerm int32
-	voteFor     int
+	voteFor     int32
 	logs        []Log
 
 	commitIndex int
@@ -196,8 +196,16 @@ type RequestVoteReply struct {
 }
 
 type AppendEntriesArgs struct {
+	Term         int32
+	LeaderId     int
+	PrevLogIndex int
+	PrevLogTerm  int
+	Entries      []Log
+	LeaderCommit int
 }
 type AppendEntriesRply struct {
+	Term    int32
+	success bool
 }
 
 //
@@ -212,7 +220,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 
 	} else {
 		rf.currentTerm = args.Term
-		rf.voteFor = args.CandidateId
+		rf.voteFor = int32(args.CandidateId)
 
 	}
 	return
@@ -253,6 +261,13 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesRply) {
+	curTerm := atomic.LoadInt32(&rf.currentTerm)
+	if args.Term < curTerm {
+		reply.success = false
+		return
+	}
+	atomic.StoreInt32(&rf.currentTerm, args.Term)
+	reply.success=true
 
 }
 func (rf *Raft) SendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesRply) bool {
@@ -305,6 +320,32 @@ func (rf *Raft) killed() bool {
 	return z == 1
 }
 
+func (rf *Raft) Leading() {
+	atomic.StoreInt32(&rf.state, LEADER)
+	go func() {
+		for {
+			for server := 0; server < rf.peerCount; server++ {
+				if server == rf.me {
+					continue
+				}
+				args := AppendEntriesArgs{}
+				rep := AppendEntriesRply{}
+				ok := rf.SendAppendEntries(server, &args, &rep)
+				if !ok {
+					continue
+				}
+				if rep.success == false {
+					rf.ChangeState(FOLLOWER)
+					return
+				}
+
+			}
+			time.Sleep(time.Microsecond * 100)
+		}
+	}()
+
+}
+
 /**
  * @name: voting
  * @desc:
@@ -312,14 +353,21 @@ func (rf *Raft) killed() bool {
  * @return {*}
  */
 func (rf *Raft) voting() {
-	for server := 0; server < len(rf.peers); server++ {
+
+	atomic.StoreInt32(&rf.voteFor, int32(rf.me))
+	for server := 0; server < rf.peerCount; server++ {
 		if server == rf.me {
 			continue
 		}
 		go func(server int) {
-			args := RequestVoteArgs{}
+			curTerm := atomic.LoadInt32(&rf.currentTerm)
+			args := RequestVoteArgs{
+				Term:        curTerm,
+				CandidateId: rf.me,
+			}
 			rep := RequestVoteReply{}
 			if rf.sendRequestVote(server, &args, &rep) && rep.VoteGranted {
+				atomic.AddInt32(&rf.voteCount, 1)
 
 			}
 		}(server)
@@ -333,8 +381,17 @@ func (rf *Raft) voting() {
 func (rf *Raft) ticker() {
 
 	for rf.killed() == false {
-		for !rf.IsHeartBeatDead() {
-			time.Sleep(time.Microsecond*100)
+		if rf.IsState(LEADER) {
+			time.Sleep(time.Microsecond * 100)
+			continue
+		}
+		for {
+			curTime := time.Now().UnixNano() / 1e6
+			preTime := atomic.LoadInt64(&rf.heartBeatTime)
+			if curTime-preTime > HEARTBEAT_TIME_OUT {
+				break
+			}
+			time.Sleep(time.Microsecond * 100)
 		}
 		randTime := rand.Intn(150) + 150 //150ms-300ms的范围
 		if rf.IsState(FOLLOWER) {
@@ -345,6 +402,10 @@ func (rf *Raft) ticker() {
 			continue
 		}
 		rf.voting()
+		votes := atomic.LoadInt32(&rf.voteCount)
+		if votes >= rf.voteCount/2 {
+			rf.Leading()
+		}
 	}
 }
 
@@ -371,14 +432,13 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.logs = make([]Log, 0)
 	rf.matchIndex = make([]int, 0)
 	rf.nextIndex = make([]int, 0)
-	rf.cond = sync.NewCond(&rf.mu)
+	rf.peerCount = len(peers)
 
 	// Your initialization code here (2A, 2B, 2C).
 
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
 
-	// start ticker goroutine to start elections
 	go rf.ticker()
 
 	return rf
