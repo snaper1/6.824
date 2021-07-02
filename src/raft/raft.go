@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-02 20:40:48
+ * @LastEditTime: 2021-07-02 20:57:31
  */
 
 package raft
@@ -267,7 +267,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesRply)
 		return
 	}
 	atomic.StoreInt32(&rf.currentTerm, args.Term)
-	reply.success=true
+	reply.success = true
 
 }
 func (rf *Raft) SendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesRply) bool {
@@ -322,6 +322,7 @@ func (rf *Raft) killed() bool {
 
 func (rf *Raft) Leading() {
 	atomic.StoreInt32(&rf.state, LEADER)
+	atomic.AddInt32(&rf.currentTerm,1)
 	go func() {
 		for {
 			for server := 0; server < rf.peerCount; server++ {
@@ -404,6 +405,7 @@ func (rf *Raft) ticker() {
 		rf.voting()
 		votes := atomic.LoadInt32(&rf.voteCount)
 		if votes >= rf.voteCount/2 {
+
 			rf.Leading()
 		}
 	}
@@ -433,6 +435,8 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.matchIndex = make([]int, 0)
 	rf.nextIndex = make([]int, 0)
 	rf.peerCount = len(peers)
+	rf.state = FOLLOWER
+	rf.currentTerm = 0
 
 	// Your initialization code here (2A, 2B, 2C).
 
