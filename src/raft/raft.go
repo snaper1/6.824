@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-02 20:57:31
+ * @LastEditTime: 2021-07-02 21:01:19
  */
 
 package raft
@@ -212,14 +212,13 @@ type AppendEntriesRply struct {
 // RequestVote RPC handler.
 //
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-	if args.Term <= rf.currentTerm {
-		reply.Term = rf.currentTerm
+	curTerm := atomic.LoadInt32(&rf.currentTerm)
+	if args.Term <= curTerm {
+		reply.Term = curTerm
 		reply.VoteGranted = false
 
 	} else {
-		rf.currentTerm = args.Term
+		atomic.StoreInt32(&rf.currentTerm, args.Term)
 		rf.voteFor = int32(args.CandidateId)
 
 	}
@@ -322,7 +321,7 @@ func (rf *Raft) killed() bool {
 
 func (rf *Raft) Leading() {
 	atomic.StoreInt32(&rf.state, LEADER)
-	atomic.AddInt32(&rf.currentTerm,1)
+	atomic.AddInt32(&rf.currentTerm, 1)
 	go func() {
 		for {
 			for server := 0; server < rf.peerCount; server++ {
