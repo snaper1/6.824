@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-02 21:58:42
+ * @LastEditTime: 2021-07-04 15:43:15
  */
 
 package raft
@@ -269,6 +269,7 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesRply) {
 	curTerm := atomic.LoadInt32(&rf.currentTerm)
+	atomic.StoreInt32(&rf.voteFor,-1)
 	if args.Term < curTerm {
 		reply.Success = false
 		return
@@ -337,7 +338,10 @@ func (rf *Raft) Leading() {
 				if server == rf.me {
 					continue
 				}
-				args := AppendEntriesArgs{}
+				args := AppendEntriesArgs{
+					Term:     atomic.LoadInt32(&rf.currentTerm),
+					LeaderId: rf.me,
+				}
 				rep := AppendEntriesRply{}
 				ok := rf.SendAppendEntries(server, &args, &rep)
 				if !ok {
@@ -364,6 +368,7 @@ func (rf *Raft) Leading() {
 func (rf *Raft) voting() {
 
 	atomic.StoreInt32(&rf.voteFor, int32(rf.me))
+	atomic.AddInt32(&rf.voteCount, 1)
 	for server := 0; server < rf.peerCount; server++ {
 		if server == rf.me {
 			continue
@@ -380,7 +385,7 @@ func (rf *Raft) voting() {
 			if rf.sendRequestVote(server, &args, &rep) && rep.VoteGranted {
 				atomic.AddInt32(&rf.voteCount, 1)
 
-			} else if rep.VoteGranted == true && rep.Term > curTerm {
+			} else if rep.VoteGranted == false && rep.Term > curTerm {
 				atomic.StoreInt32(&rf.currentTerm, rep.Term)
 			}
 		}(server)
@@ -450,7 +455,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.state = FOLLOWER
 	rf.currentTerm = 0
 	rf.dead = 0
-
+	rf.voteCount = 0
 	// Your initialization code here (2A, 2B, 2C).
 
 	// initialize from state persisted before a crash
