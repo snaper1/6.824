@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-04 17:22:26
+ * @LastEditTime: 2021-07-04 17:27:44
  */
 
 package raft
@@ -55,7 +55,7 @@ type ApplyMsg struct {
 }
 
 type Log struct {
-	term    int
+	Term    int
 	Command interface{}
 }
 
@@ -399,6 +399,11 @@ func (rf *Raft) voting() {
 	wg.Wait()
 
 }
+func (rf *Raft) resetPeer() {
+	atomic.StoreInt32(&rf.voteCount, 0)
+	atomic.StoreInt32(&rf.voteFor, -1)
+	rf.ChangeState(FOLLOWER)
+}
 
 // The ticker go routine starts a new election if this peer hasn't received
 // heartsbeats recently
@@ -430,8 +435,9 @@ func (rf *Raft) ticker() {
 		if votes > int32(rf.peerCount)/2 {
 			fmt.Println("be a leader")
 			rf.Leading()
-
 		}
+		rf.resetPeer()
+
 	}
 }
 
