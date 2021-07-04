@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-04 15:51:49
+ * @LastEditTime: 2021-07-04 15:53:38
  */
 
 package raft
@@ -444,6 +444,7 @@ func (rf *Raft) ticker() {
 //
 func Make(peers []*labrpc.ClientEnd, me int,
 	persister *Persister, applyCh chan ApplyMsg) *Raft {
+	fmt.Println("------make-----")
 	rf := &Raft{}
 	rf.peers = peers
 	rf.persister = persister
