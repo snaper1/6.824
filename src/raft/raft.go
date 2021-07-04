@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-04 21:35:21
+ * @LastEditTime: 2021-07-04 21:51:38
  */
 
 package raft
@@ -350,6 +350,7 @@ func (rf *Raft) Leading() {
 			time.Sleep(time.Microsecond * 100)
 		}
 	}(&wg)
+	wg.Wait()
 
 }
 
