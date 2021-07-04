@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-04 15:43:15
+ * @LastEditTime: 2021-07-04 15:51:49
  */
 
 package raft
@@ -21,6 +21,7 @@ package raft
 
 import (
 	//	"bytes"
+	"fmt"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -269,7 +270,7 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesRply) {
 	curTerm := atomic.LoadInt32(&rf.currentTerm)
-	atomic.StoreInt32(&rf.voteFor,-1)
+	atomic.StoreInt32(&rf.voteFor, -1)
 	if args.Term < curTerm {
 		reply.Success = false
 		return
@@ -330,6 +331,7 @@ func (rf *Raft) killed() bool {
 }
 
 func (rf *Raft) Leading() {
+	fmt.Println("------leading-----")
 	atomic.StoreInt32(&rf.state, LEADER)
 	atomic.AddInt32(&rf.currentTerm, 1)
 	go func() {
@@ -366,7 +368,7 @@ func (rf *Raft) Leading() {
  * @return {*}
  */
 func (rf *Raft) voting() {
-
+	fmt.Println("------voting-----")
 	atomic.StoreInt32(&rf.voteFor, int32(rf.me))
 	atomic.AddInt32(&rf.voteCount, 1)
 	for server := 0; server < rf.peerCount; server++ {
@@ -422,8 +424,9 @@ func (rf *Raft) ticker() {
 		rf.voting()
 		votes := atomic.LoadInt32(&rf.voteCount)
 		if votes >= int32(rf.peerCount)/2 {
-
+			fmt.Println("be a leader")
 			rf.Leading()
+
 		}
 	}
 }
