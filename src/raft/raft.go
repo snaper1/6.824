@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-04 17:27:44
+ * @LastEditTime: 2021-07-04 20:44:58
  */
 
 package raft
@@ -110,14 +110,8 @@ func (rf *Raft) IsHeartBeatDead() bool {
 	return atomic.LoadInt32(&rf.heartBeatState) == HEARTBEAT_DEAD
 }
 
-// return currentTerm and whether this server
-// believes it is the leader.
 func (rf *Raft) GetState() (int, bool) {
-
-	var term int
-	var isleader bool
-	// Your code here (2A).
-	return term, isleader
+	return int(atomic.LoadInt32(&rf.currentTerm)), rf.IsState(LEADER)
 }
 
 //
@@ -216,7 +210,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	voteFor := atomic.LoadInt32(&rf.voteFor)
 
 	curTerm := atomic.LoadInt32(&rf.currentTerm)
-	if voteFor != -1 || args.Term <= curTerm {
+	if voteFor != -1 || args.Term < curTerm {
 		reply.Term = curTerm
 		reply.VoteGranted = false
 
@@ -332,13 +326,15 @@ func (rf *Raft) Leading() {
 	fmt.Println("------leading-----")
 	atomic.StoreInt32(&rf.state, LEADER)
 	atomic.AddInt32(&rf.currentTerm, 1)
-
-	go func() {
+	var wg sync.WaitGroup
+	wg.Add(rf.peerCount - 1)
+	go func(wg *sync.WaitGroup) {
 		for {
 			for server := 0; server < rf.peerCount; server++ {
 				if server == rf.me {
 					continue
 				}
+				defer wg.Done()
 				args := AppendEntriesArgs{
 					Term:     atomic.LoadInt32(&rf.currentTerm),
 					LeaderId: rf.me,
@@ -356,7 +352,7 @@ func (rf *Raft) Leading() {
 			}
 			time.Sleep(time.Microsecond * 100)
 		}
-	}()
+	}(&wg)
 
 }
 
@@ -368,6 +364,9 @@ func (rf *Raft) Leading() {
  */
 func (rf *Raft) voting() {
 	fmt.Printf("------%d voting-----\n", rf.me)
+	if rf.IsState(FOLLOWER) {
+		return
+	}
 	atomic.StoreInt32(&rf.voteFor, int32(rf.me))
 	atomic.AddInt32(&rf.voteCount, 1)
 	var wg sync.WaitGroup
@@ -410,8 +409,9 @@ func (rf *Raft) resetPeer() {
 func (rf *Raft) ticker() {
 
 	for rf.killed() == false {
+		time.Sleep(time.Microsecond * 100)
 		if rf.IsState(LEADER) {
-			time.Sleep(time.Microsecond * 100)
+
 			continue
 		}
 		for {
@@ -426,7 +426,7 @@ func (rf *Raft) ticker() {
 		if rf.IsState(FOLLOWER) {
 			rf.ChangeState(CANDIDATE)
 		}
-		time.Sleep(time.Microsecond * time.Duration(randTime))
+		time.Sleep(time.Millisecond * time.Duration(randTime))
 		if !rf.IsState(CANDIDATE) {
 			continue
 		}
