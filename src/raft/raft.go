@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-04 20:44:58
+ * @LastEditTime: 2021-07-04 21:34:10
  */
 
 package raft
@@ -375,7 +375,7 @@ func (rf *Raft) voting() {
 		if server == rf.me {
 			continue
 		}
-		go func(server int) {
+		go func(server int, wg *sync.WaitGroup) {
 			defer wg.Done()
 			curTerm := atomic.LoadInt32(&rf.currentTerm)
 			args := RequestVoteArgs{
@@ -392,7 +392,7 @@ func (rf *Raft) voting() {
 			} else if rep.VoteGranted == false && rep.Term > curTerm {
 				atomic.StoreInt32(&rf.currentTerm, rep.Term)
 			}
-		}(server)
+		}(server, &wg)
 
 	}
 	wg.Wait()
