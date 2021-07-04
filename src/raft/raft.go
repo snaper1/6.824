@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-04 23:50:11
+ * @LastEditTime: 2021-07-05 00:21:19
  */
 
 package raft
@@ -323,15 +323,14 @@ func (rf *Raft) Leading() {
 	fmt.Println("------leading-----")
 	atomic.StoreInt32(&rf.state, LEADER)
 	atomic.AddInt32(&rf.currentTerm, 1)
-	var wg sync.WaitGroup
-	wg.Add(rf.peerCount - 1)
-	go func(wg *sync.WaitGroup) {
+	go func() {
 		for {
+			fail := 0
 			for server := 0; server < rf.peerCount; server++ {
 				if server == rf.me {
 					continue
 				}
-				defer wg.Done()
+
 				args := AppendEntriesArgs{
 					Term:     atomic.LoadInt32(&rf.currentTerm),
 					LeaderId: rf.me,
@@ -339,18 +338,22 @@ func (rf *Raft) Leading() {
 				rep := AppendEntriesRply{}
 				ok := rf.SendAppendEntries(server, &args, &rep)
 				if !ok {
+					fail++
 					continue
 				}
 				if rep.Success == false {
-					rf.ChangeState(FOLLOWER)
+					rf.resetPeer()
 					return
 				}
 
 			}
+			if fail == rf.peerCount-1 {
+				rf.resetPeer()
+				return
+			}
 			time.Sleep(time.Microsecond * 100)
 		}
-	}(&wg)
-	wg.Wait()
+	}()
 
 }
 
@@ -434,6 +437,7 @@ func (rf *Raft) ticker() {
 		if votes > int32(rf.peerCount)/2 {
 			fmt.Println("be a leader")
 			rf.Leading()
+			continue
 		}
 		rf.resetPeer()
 
