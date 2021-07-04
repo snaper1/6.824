@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-04 15:58:01
+ * @LastEditTime: 2021-07-04 17:22:26
  */
 
 package raft
@@ -214,7 +214,7 @@ type AppendEntriesRply struct {
 //
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	voteFor := atomic.LoadInt32(&rf.voteFor)
-	
+
 	curTerm := atomic.LoadInt32(&rf.currentTerm)
 	if voteFor != -1 || args.Term <= curTerm {
 		reply.Term = curTerm
@@ -332,6 +332,7 @@ func (rf *Raft) Leading() {
 	fmt.Println("------leading-----")
 	atomic.StoreInt32(&rf.state, LEADER)
 	atomic.AddInt32(&rf.currentTerm, 1)
+
 	go func() {
 		for {
 			for server := 0; server < rf.peerCount; server++ {
@@ -369,11 +370,14 @@ func (rf *Raft) voting() {
 	fmt.Printf("------%d voting-----\n", rf.me)
 	atomic.StoreInt32(&rf.voteFor, int32(rf.me))
 	atomic.AddInt32(&rf.voteCount, 1)
+	var wg sync.WaitGroup
+	wg.Add(rf.peerCount - 1)
 	for server := 0; server < rf.peerCount; server++ {
 		if server == rf.me {
 			continue
 		}
 		go func(server int) {
+			defer wg.Done()
 			curTerm := atomic.LoadInt32(&rf.currentTerm)
 			args := RequestVoteArgs{
 				Term:        curTerm,
@@ -383,7 +387,7 @@ func (rf *Raft) voting() {
 				VoteGranted: false,
 			}
 			if rf.sendRequestVote(server, &args, &rep) && rep.VoteGranted {
-				fmt.Printf("------%d get one vote from %d-----\n", rf.me, server)
+				fmt.Printf("------ %d get one vote from %d -----\n", rf.me, server)
 				atomic.AddInt32(&rf.voteCount, 1)
 
 			} else if rep.VoteGranted == false && rep.Term > curTerm {
@@ -392,6 +396,7 @@ func (rf *Raft) voting() {
 		}(server)
 
 	}
+	wg.Wait()
 
 }
 
@@ -422,7 +427,7 @@ func (rf *Raft) ticker() {
 		}
 		rf.voting()
 		votes := atomic.LoadInt32(&rf.voteCount)
-		if votes >= int32(rf.peerCount)/2 {
+		if votes > int32(rf.peerCount)/2 {
 			fmt.Println("be a leader")
 			rf.Leading()
 
