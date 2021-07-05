@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-05 00:21:19
+ * @LastEditTime: 2021-07-05 11:35:12
  */
 
 package raft
@@ -319,41 +319,25 @@ func (rf *Raft) killed() bool {
 	return z == 1
 }
 
-func (rf *Raft) Leading() {
-	fmt.Println("------leading-----")
-	atomic.StoreInt32(&rf.state, LEADER)
-	atomic.AddInt32(&rf.currentTerm, 1)
-	go func() {
-		for {
-			fail := 0
-			for server := 0; server < rf.peerCount; server++ {
-				if server == rf.me {
-					continue
-				}
+func (rf *Raft) Leading(server int) {
 
-				args := AppendEntriesArgs{
-					Term:     atomic.LoadInt32(&rf.currentTerm),
-					LeaderId: rf.me,
-				}
-				rep := AppendEntriesRply{}
-				ok := rf.SendAppendEntries(server, &args, &rep)
-				if !ok {
-					fail++
-					continue
-				}
-				if rep.Success == false {
-					rf.resetPeer()
-					return
-				}
+	if !rf.IsState(LEADER) || rf.killed() {
+		rf.resetPeer()
+		return
+	}
+	args := AppendEntriesArgs{
+		Term:     atomic.LoadInt32(&rf.currentTerm),
+		LeaderId: rf.me,
+	}
+	rep := AppendEntriesRply{}
+	rf.SendAppendEntries(server, &args, &rep)
 
-			}
-			if fail == rf.peerCount-1 {
-				rf.resetPeer()
-				return
-			}
-			time.Sleep(time.Microsecond * 100)
-		}
-	}()
+	if rep.Success == false {
+		rf.resetPeer()
+		return
+	}
+
+	time.Sleep(time.Microsecond * 100)
 
 }
 
@@ -411,9 +395,17 @@ func (rf *Raft) resetPeer() {
 func (rf *Raft) ticker() {
 
 	for rf.killed() == false {
-		time.Sleep(time.Microsecond * 100)
-		if rf.IsState(LEADER) {
 
+		if rf.IsState(LEADER) {
+			fmt.Printf("[leading] %d", rf.me)
+			for server := 0; server < rf.peerCount; server++ {
+				if server == rf.me {
+					continue
+				}
+				go rf.Leading(server)
+
+			}
+			time.Sleep(time.Millisecond * 100)
 			continue
 		}
 		for {
@@ -422,7 +414,7 @@ func (rf *Raft) ticker() {
 			if curTime-preTime > HEARTBEAT_TIME_OUT {
 				break
 			}
-			time.Sleep(time.Microsecond * 100)
+			time.Sleep(time.Millisecond * 100)
 		}
 		randTime := rand.Intn(150) + 150 //150ms-300ms的范围
 		if rf.IsState(FOLLOWER) {
@@ -435,8 +427,8 @@ func (rf *Raft) ticker() {
 		rf.voting()
 		votes := atomic.LoadInt32(&rf.voteCount)
 		if votes > int32(rf.peerCount)/2 {
-			fmt.Println("be a leader")
-			rf.Leading()
+			fmt.Printf("%d be a leader", rf.me)
+			rf.ChangeState(LEADER)
 			continue
 		}
 		rf.resetPeer()
@@ -457,7 +449,6 @@ func (rf *Raft) ticker() {
 //
 func Make(peers []*labrpc.ClientEnd, me int,
 	persister *Persister, applyCh chan ApplyMsg) *Raft {
-	fmt.Println("------make-----")
 	rf := &Raft{}
 	rf.peers = peers
 	rf.persister = persister
