@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-05 15:45:10
+ * @LastEditTime: 2021-07-05 15:53:13
  */
 
 package raft
@@ -21,7 +21,6 @@ package raft
 
 import (
 	//	"bytes"
-	"fmt"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -366,7 +365,6 @@ func (rf *Raft) voting() {
 	if rf.IsState(FOLLOWER) {
 		return
 	}
-	fmt.Printf("%d voting\n", rf.me)
 	atomic.StoreInt32(&rf.voteFor, int32(rf.me))
 	atomic.AddInt32(&rf.currentTerm, 1)
 	atomic.AddInt32(&rf.voteCount, 1)
@@ -387,8 +385,7 @@ func (rf *Raft) voting() {
 				VoteGranted: false,
 			}
 			if rf.sendRequestVote(server, &args, &rep) && rep.VoteGranted {
-				fmt.Printf(" %d get one vote from %d \n", rf.me, server)
-				fmt.Printf("candi %d term is %d ,foll term is %d\n", rf.me, curTerm, rep.Term)
+
 				atomic.AddInt32(&rf.voteCount, 1)
 
 			} else if rep.VoteGranted == false && rep.Term > curTerm {
@@ -405,6 +402,19 @@ func (rf *Raft) resetPeer() {
 	atomic.StoreInt32(&rf.voteFor, -1)
 	rf.ChangeState(FOLLOWER)
 }
+func (rf *Raft) broadcastAppendEntries() {
+	for server := 0; server < rf.peerCount; server++ {
+		if server == rf.me {
+			continue
+		}
+		if !rf.IsState(LEADER) || rf.killed() {
+			rf.resetPeer()
+			break
+		}
+		go rf.Leading(server)
+
+	}
+}
 
 // The ticker go routine starts a new election if this peer hasn't received
 // heartsbeats recently
@@ -413,21 +423,7 @@ func (rf *Raft) ticker() {
 	for rf.killed() == false {
 
 		if rf.IsState(LEADER) {
-			for server := 0; server < rf.peerCount; server++ {
-				if server == rf.me {
-					continue
-				}
-				if !rf.IsState(LEADER) {
-					rf.resetPeer()
-					break
-				}
-				if rf.killed() {
-					rf.resetPeer()
-					return
-				}
-				go rf.Leading(server)
-
-			}
+			rf.broadcastAppendEntries()
 			time.Sleep(time.Millisecond * 100)
 			continue
 		}
@@ -456,24 +452,18 @@ func (rf *Raft) ticker() {
 		time.Sleep(time.Millisecond * 100)
 		votes := atomic.LoadInt32(&rf.voteCount)
 		if votes > int32(rf.peerCount)/2 {
-			fmt.Printf("%d be a leader", rf.me)
 			rf.ChangeState(LEADER)
 		}
 
 	}
 }
 
-//
-// the service or tester wants to create a Raft server. the ports
-// of all the Raft servers (including this one) are in peers[]. this
-// server's port is peers[me]. all the servers' peers[] arrays
-// have the same order. persister is a place for this server to
-// save its persistent state, and also initially holds the most
-// recent saved state, if any. applyCh is a channel on which the
-// tester or service expects Raft to send ApplyMsg messages.
-// Make() must return quickly, so it should start goroutines
-// for any long-running work.
-//
+/**
+ * @name: Make
+ * @desc: make raft peer
+ * @param {*}
+ * @return {*}
+ */
 func Make(peers []*labrpc.ClientEnd, me int,
 	persister *Persister, applyCh chan ApplyMsg) *Raft {
 	rf := &Raft{}
