@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-05 14:11:12
+ * @LastEditTime: 2021-07-05 14:47:20
  */
 
 package raft
@@ -389,6 +389,7 @@ func (rf *Raft) voting() {
 			}
 			if rf.sendRequestVote(server, &args, &rep) && rep.VoteGranted {
 				fmt.Printf(" %d get one vote from %d \n", rf.me, server)
+				fmt.Printf("candi %d term is %d ,foll term is %d\n", rf.me, curTerm, rep.Term)
 				atomic.AddInt32(&rf.voteCount, 1)
 
 			} else if rep.VoteGranted == false && rep.Term > curTerm {
@@ -433,12 +434,14 @@ func (rf *Raft) ticker() {
 			continue
 		}
 		for {
+			time.Sleep(time.Millisecond * 100)
 			curTime := time.Now().UnixNano() / 1e6
 			preTime := atomic.LoadInt64(&rf.heartBeatTime)
 			if curTime-preTime > HEARTBEAT_TIME_OUT {
+				rf.resetPeer()
 				break
 			}
-			time.Sleep(time.Millisecond * 100)
+
 		}
 		randTime := rand.Intn(150) + 150 //150ms-300ms的范围
 		if rf.IsState(FOLLOWER) {
@@ -453,9 +456,7 @@ func (rf *Raft) ticker() {
 		if votes > int32(rf.peerCount)/2 {
 			fmt.Printf("%d be a leader", rf.me)
 			rf.ChangeState(LEADER)
-			continue
 		}
-		rf.resetPeer()
 
 	}
 }
