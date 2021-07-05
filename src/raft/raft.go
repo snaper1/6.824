@@ -362,10 +362,11 @@ func (rf *Raft) Leading(server int) {
  * @return {*}
  */
 func (rf *Raft) voting() {
-	fmt.Printf("%d voting\n", rf.me)
+
 	if rf.IsState(FOLLOWER) {
 		return
 	}
+	fmt.Printf("%d voting\n", rf.me)
 	atomic.StoreInt32(&rf.voteFor, int32(rf.me))
 	atomic.AddInt32(&rf.currentTerm, 1)
 	atomic.AddInt32(&rf.voteCount, 1)
