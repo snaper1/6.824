@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-05 11:35:12
+ * @LastEditTime: 2021-07-05 13:38:16
  */
 
 package raft
@@ -208,19 +208,32 @@ type AppendEntriesRply struct {
 //
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	voteFor := atomic.LoadInt32(&rf.voteFor)
-
+	state := atomic.LoadInt32(&rf.state)
 	curTerm := atomic.LoadInt32(&rf.currentTerm)
-	if voteFor != -1 || args.Term <= curTerm {
-		reply.Term = curTerm
-		reply.VoteGranted = false
+	reply.Term = curTerm
+	reply.VoteGranted = false
+	switch state {
+	case LEADER:
+		return
+	case CANDIDATE:
+
+		if args.Term > curTerm {
+			rf.resetPeer()
+			atomic.StoreInt32(&rf.currentTerm, args.Term)
+			atomic.StoreInt32(&rf.voteFor, int32(args.CandidateId))
+			reply.VoteGranted = true
+
+		}
+		return
+	case FOLLOWER:
+		if voteFor == -1 && args.Term > curTerm {
+			atomic.StoreInt32(&rf.currentTerm, args.Term)
+			atomic.StoreInt32(&rf.voteFor, int32(args.CandidateId))
+			reply.VoteGranted = true
+		}
 		return
 	}
-	if rf.IsState(CANDIDATE) {
-		rf.ChangeState(FOLLOWER)
-	}
-	atomic.StoreInt32(&rf.currentTerm, args.Term)
-	atomic.StoreInt32(&rf.voteFor, int32(args.CandidateId))
-	reply.VoteGranted = true
+
 }
 
 //
