@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-05 14:53:35
+ * @LastEditTime: 2021-07-05 15:45:10
  */
 
 package raft
@@ -370,18 +370,14 @@ func (rf *Raft) voting() {
 	atomic.StoreInt32(&rf.voteFor, int32(rf.me))
 	atomic.AddInt32(&rf.currentTerm, 1)
 	atomic.AddInt32(&rf.voteCount, 1)
-	var wg sync.WaitGroup
-	wg.Add(rf.peerCount - 1)
 	for server := 0; server < rf.peerCount; server++ {
 		if !rf.IsState(CANDIDATE) {
-			wg.Done()
-			continue
+			break
 		}
 		if server == rf.me {
 			continue
 		}
-		go func(server int, wg *sync.WaitGroup) {
-			defer wg.Done()
+		go func(server int) {
 			curTerm := atomic.LoadInt32(&rf.currentTerm)
 			args := RequestVoteArgs{
 				Term:        curTerm,
@@ -399,10 +395,9 @@ func (rf *Raft) voting() {
 				rf.resetPeer()
 				atomic.StoreInt32(&rf.currentTerm, rep.Term)
 			}
-		}(server, &wg)
+		}(server)
 
 	}
-	wg.Wait()
 
 }
 func (rf *Raft) resetPeer() {
@@ -437,6 +432,9 @@ func (rf *Raft) ticker() {
 			continue
 		}
 		for {
+			if rf.killed() {
+				return
+			}
 			time.Sleep(time.Millisecond * 100)
 			curTime := time.Now().UnixNano() / 1e6
 			preTime := atomic.LoadInt64(&rf.heartBeatTime)
@@ -455,6 +453,7 @@ func (rf *Raft) ticker() {
 			continue
 		}
 		rf.voting()
+		time.Sleep(time.Millisecond * 100)
 		votes := atomic.LoadInt32(&rf.voteCount)
 		if votes > int32(rf.peerCount)/2 {
 			fmt.Printf("%d be a leader", rf.me)
