@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-05 14:47:20
+ * @LastEditTime: 2021-07-05 14:52:15
  */
 
 package raft
@@ -221,6 +221,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 			rf.resetPeer()
 			atomic.StoreInt32(&rf.currentTerm, args.Term)
 			atomic.StoreInt32(&rf.voteFor, int32(args.CandidateId))
+			reply.Term = curTerm
 			reply.VoteGranted = true
 
 		}
@@ -229,6 +230,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		if voteFor == -1 && args.Term > curTerm {
 			atomic.StoreInt32(&rf.currentTerm, args.Term)
 			atomic.StoreInt32(&rf.voteFor, int32(args.CandidateId))
+			reply.Term = curTerm
 			reply.VoteGranted = true
 		}
 		return
@@ -393,6 +395,7 @@ func (rf *Raft) voting() {
 				atomic.AddInt32(&rf.voteCount, 1)
 
 			} else if rep.VoteGranted == false && rep.Term > curTerm {
+				rf.resetPeer()
 				atomic.StoreInt32(&rf.currentTerm, rep.Term)
 			}
 		}(server, &wg)
@@ -486,7 +489,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.nextIndex = make([]int, 0)
 	rf.peerCount = len(peers)
 	rf.state = FOLLOWER
-	rf.currentTerm = 0
 	rf.dead = 0
 	rf.voteCount = 0
 	// Your initialization code here (2A, 2B, 2C).
