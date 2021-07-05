@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-05 13:38:16
+ * @LastEditTime: 2021-07-05 14:11:12
  */
 
 package raft
@@ -335,7 +335,6 @@ func (rf *Raft) killed() bool {
 func (rf *Raft) Leading(server int) {
 
 	if !rf.IsState(LEADER) || rf.killed() {
-		rf.resetPeer()
 		return
 	}
 	args := AppendEntriesArgs{
@@ -361,7 +360,7 @@ func (rf *Raft) Leading(server int) {
  * @return {*}
  */
 func (rf *Raft) voting() {
-	fmt.Printf("------%d voting-----\n", rf.me)
+	fmt.Printf("%d voting\n", rf.me)
 	if rf.IsState(FOLLOWER) {
 		return
 	}
@@ -371,6 +370,10 @@ func (rf *Raft) voting() {
 	var wg sync.WaitGroup
 	wg.Add(rf.peerCount - 1)
 	for server := 0; server < rf.peerCount; server++ {
+		if !rf.IsState(CANDIDATE) {
+			wg.Done()
+			continue
+		}
 		if server == rf.me {
 			continue
 		}
@@ -385,7 +388,7 @@ func (rf *Raft) voting() {
 				VoteGranted: false,
 			}
 			if rf.sendRequestVote(server, &args, &rep) && rep.VoteGranted {
-				fmt.Printf("------ %d get one vote from %d -----\n", rf.me, server)
+				fmt.Printf(" %d get one vote from %d \n", rf.me, server)
 				atomic.AddInt32(&rf.voteCount, 1)
 
 			} else if rep.VoteGranted == false && rep.Term > curTerm {
@@ -414,6 +417,14 @@ func (rf *Raft) ticker() {
 			for server := 0; server < rf.peerCount; server++ {
 				if server == rf.me {
 					continue
+				}
+				if !rf.IsState(LEADER) {
+					rf.resetPeer()
+					break
+				}
+				if rf.killed() {
+					rf.resetPeer()
+					return
 				}
 				go rf.Leading(server)
 
