@@ -2,25 +2,14 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-05 15:53:13
+ * @LastEditTime: 2021-07-07 12:52:25
  */
 
 package raft
 
-// rf = Make(...)
-//   create a new Raft server.
-// rf.Start(command interface{}) (index, term, isleader)
-//   start agreement on a new log entry
-// rf.GetState() (term, isLeader)
-//   ask a Raft for its current term, and whether it thinks it is leader
-// ApplyMsg
-//   each time a new entry is committed to the log, each Raft peer
-//   should send an ApplyMsg to the service (or tester)
-//   in the same server.
-//
-
 import (
 	//	"bytes"
+
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -30,12 +19,10 @@ import (
 	"6.824/labrpc"
 )
 
-//
-// as each Raft peer becomes aware that successive log entries are
-// committed, the peer should send an ApplyMsg to the service (or
-// tester) on the same server, via the applyCh passed to Make(). set
-// CommandValid to true to indicate that the ApplyMsg contains a newly
-// committed log entry.
+// ApplyMsg
+//   each time a new entry is committed to the log, each Raft peer
+//   should send an ApplyMsg to the service (or tester)
+//   in the same server.
 //
 // in part 2D you'll want to send other kinds of messages (e.g.,
 // snapshots) on the applyCh, but set CommandValid to false for these
@@ -55,31 +42,33 @@ type ApplyMsg struct {
 
 type Log struct {
 	Term    int
+	Index   int
 	Command interface{}
 }
 
 //raft struct
 type Raft struct {
-	mu             sync.Mutex          // Lock to protect shared access to this peer's state
-	peers          []*labrpc.ClientEnd // RPC end points of all peers
-	persister      *Persister          // Object to hold this peer's persisted state
-	me             int                 // this peer's index into peers[]
-	dead           int32               // set by Kill()
-	voteCount      int32
+	me             int   // this peer's index into peers[]
+	dead           int32 // set by Kill()
+	voteCount      int32 //投票数量
 	heartBeatTime  int64
 	heartBeatState int32
 	peerCount      int
+	mu             sync.Mutex          // Lock to protect shared access to this peer's state
+	peers          []*labrpc.ClientEnd // RPC end points of all peers
+	persister      *Persister          // Object to hold this peer's persisted state
+	applyCh        chan ApplyMsg       //用于通知test（server）新的commited log，不需要主动调用
 
 	//need persist
-	state       int32
+	state       int32 //节点状态
 	currentTerm int32
-	voteFor     int32
-	logs        []Log
+	voteFor     int32 //投票给谁
+	logs        []Log //该节点存储的log（command）
 
-	commitIndex int
-	lastApplied int
-	nextIndex   []int
-	matchIndex  []int
+	commitIndex int   //该节点，即将要的最后一个索引
+	lastApplied int   //该节点，已提交的最后一个索引
+	nextIndex   []int //各个节点即将发送的索引
+	matchIndex  []int //各个节点以及被复制的最后一条日志的索引
 
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
@@ -95,12 +84,6 @@ func (rf *Raft) IsState(state int32) bool {
 	return atomic.LoadInt32(&rf.state) == state
 }
 
-/**
- * @name:
- * @desc: 判断rf的状态，使用atomic 并发安全
- * @param {int32} state
- * @return {*}
- */
 func (rf *Raft) ChangeState(state int32) {
 	atomic.StoreInt32(&rf.state, state)
 }
@@ -238,15 +221,6 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 }
 
 //
-// example code to send a RequestVote RPC to a server.
-// server is the index of the target server in rf.peers[].
-// expects RPC arguments in args.
-// fills in *reply with RPC reply, so caller should
-// pass &reply.
-// the types of the args and reply passed to Call() must be
-// the same as the types of the arguments declared in the
-// handler function (including whether they are pointers).
-//
 // The labrpc package simulates a lossy network, in which servers
 // may be unreachable, and in which requests and replies may be lost.
 // Call() sends a request and waits for a reply. If a reply arrives
@@ -271,15 +245,69 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 	return ok
 }
 
+/**
+ * @name:
+ * @desc:将新的日志 提交到server中
+ * @param {*}
+ * @return {*}
+ */
+func (rf *Raft) applyToServer() {
+
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	for rf.lastApplied < rf.commitIndex {
+		rf.lastApplied++
+		msg := ApplyMsg{
+			Command:      rf.logs[rf.lastApplied].Command,
+			CommandValid: true,
+			CommandIndex: rf.lastApplied,
+		}
+		rf.applyCh <- msg
+	}
+
+}
+
+/**
+ * @name:
+ * @desc:
+ * @param {*AppendEntriesArgs} args
+ * @param {*AppendEntriesRply} reply
+ * @return {*}
+ */
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesRply) {
 	curTerm := atomic.LoadInt32(&rf.currentTerm)
-	atomic.StoreInt32(&rf.voteFor, -1)
+	reply.Success = false
+	reply.Term = curTerm
 	if args.Term < curTerm {
-		reply.Success = false
 		return
 	}
 	atomic.StoreInt64(&rf.heartBeatTime, time.Now().UnixNano()/1e6)
 	atomic.StoreInt32(&rf.currentTerm, args.Term)
+	rf.mu.Lock()
+
+	if args.PrevLogIndex >= len(rf.logs) || args.PrevLogTerm != rf.logs[args.PrevLogIndex].Term {
+		reply.Term = args.Term
+		return
+	}
+	appendLen := len(args.Entries)
+	if args.PrevLogIndex+appendLen > len(rf.logs)-1 { //如果复制的日志本地没有，直接追加存储
+		rf.logs = append(rf.logs[0:args.PrevLogIndex+1], args.Entries...)
+	} else {
+		for i := args.PrevLogIndex + 1; i < args.PrevLogIndex+1+appendLen; i++ { //检查日志任期
+			j := i - args.PrevLogIndex - 1
+			if args.Entries[j].Term != rf.logs[i].Term { //如果已存在的日志和prevlogTerm不相同，则删除之后的日志
+				rf.logs = append(rf.logs[0:i], args.Entries[j:]...)
+				break
+			}
+		}
+	}
+
+	if args.LeaderCommit > rf.commitIndex {
+		rf.commitIndex = args.LeaderCommit
+		rf.applyToServer()
+	}
+	rf.mu.Unlock()
+
 	reply.Success = true
 
 }
@@ -288,41 +316,40 @@ func (rf *Raft) SendAppendEntries(server int, args *AppendEntriesArgs, reply *Ap
 	return ok
 }
 
-//
-// the service using Raft (e.g. a k/v server) wants to start
-// agreement on the next command to be appended to Raft's log. if this
-// server isn't the leader, returns false. otherwise start the
-// agreement and return immediately. there is no guarantee that this
-// command will ever be committed to the Raft log, since the leader
-// may fail or lose an election. even if the Raft instance has been killed,
-// this function should return gracefully.
-//
-// the first return value is the index that the command will appear at
-// if it's ever committed. the second return value is the current
-// term. the third return value is true if this server believes it is
-// the leader.
-//
+/**
+ * @name: Start
+ * @desc: server use this func to append command to the leader log
+ * @param {*}
+ * @return {*}
+ */
+
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	index := -1
 	term := -1
-	isLeader := true
+	isLeader := false
+	if rf.IsState(LEADER) {
+		term = int(atomic.LoadInt32(&rf.currentTerm))
+		rf.mu.Lock()
+		index = len(rf.logs) - 1
+		log := Log{
+			Term:    term,
+			Command: command,
+			Index:   index,
+		}
+		rf.logs = append(rf.logs, log)
+		rf.mu.Unlock()
 
-	// Your code here (2B).
+	}
 
 	return index, term, isLeader
 }
 
-//
-// the tester doesn't halt goroutines created by Raft after each test,
-// but it does call the Kill() method. your code can use killed() to
-// check whether Kill() has been called. the use of atomic avoids the
-// need for a lock.
-//
-// the issue is that long-running goroutines use memory and may chew
-// up CPU time, perhaps causing later tests to fail and generating
-// confusing debug output. any goroutine with a long-running loop
-// should call killed() to check whether it should stop.
-//
+/**
+ * @name:
+ * @desc:
+ * @param {*}
+ * @return {*}
+ */
 func (rf *Raft) Kill() {
 	atomic.StoreInt32(&rf.dead, 1)
 	// Your code here, if desired.
@@ -333,21 +360,40 @@ func (rf *Raft) killed() bool {
 	return z == 1
 }
 
+/**
+ * @name: Leading
+ * @desc:给节点发送appendEntries，并处理回报
+ * @param {int} server
+ * @return {*}
+ */
 func (rf *Raft) Leading(server int) {
-
+	curTerm := atomic.LoadInt32(&rf.currentTerm)
 	if !rf.IsState(LEADER) || rf.killed() {
 		return
 	}
+
 	args := AppendEntriesArgs{
-		Term:     atomic.LoadInt32(&rf.currentTerm),
-		LeaderId: rf.me,
+		Term:         curTerm,
+		LeaderId:     rf.me,
+		Entries:      rf.logs[rf.nextIndex[server]:],
+		PrevLogIndex: rf.logs[rf.nextIndex[server]-1].Index,
+		PrevLogTerm:  rf.logs[rf.nextIndex[server]-1].Term,
+		LeaderCommit: rf.commitIndex,
 	}
 	rep := AppendEntriesRply{}
 	rf.SendAppendEntries(server, &args, &rep)
 
-	if rep.Success == false {
+	if rep.Success == false && rep.Term > curTerm {
 		rf.resetPeer()
 		return
+	} else if rep.Success == false && rep.Term <= curTerm { //如果当前prevlog和server不匹配
+		if rf.nextIndex[server] > 1 {
+			rf.nextIndex[server]--
+		}
+	} else { //添加成功
+		rf.nextIndex[server] += len(args.Entries)
+		//rf.matchIndex[server]=
+
 	}
 
 	time.Sleep(time.Microsecond * 100)
@@ -402,6 +448,13 @@ func (rf *Raft) resetPeer() {
 	atomic.StoreInt32(&rf.voteFor, -1)
 	rf.ChangeState(FOLLOWER)
 }
+
+/**
+ * @name:
+ * @desc:
+ * @param {*}
+ * @return {*}
+ */
 func (rf *Raft) broadcastAppendEntries() {
 	for server := 0; server < rf.peerCount; server++ {
 		if server == rf.me {
@@ -416,8 +469,12 @@ func (rf *Raft) broadcastAppendEntries() {
 	}
 }
 
-// The ticker go routine starts a new election if this peer hasn't received
-// heartsbeats recently
+/**
+ * @name:
+ * @desc:
+ * @param {*}
+ * @return {*}
+ */
 func (rf *Raft) ticker() {
 
 	for rf.killed() == false {
@@ -470,16 +527,17 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.peers = peers
 	rf.persister = persister
 	rf.me = me
-	rf.heartBeatTime = time.Now().UnixNano() / 1e6
-	rf.currentTerm = 0
-	rf.voteFor = -1
-	rf.logs = make([]Log, 0)
-	rf.matchIndex = make([]int, 0)
-	rf.nextIndex = make([]int, 0)
 	rf.peerCount = len(peers)
 	rf.state = FOLLOWER
 	rf.dead = 0
 	rf.voteCount = 0
+	rf.heartBeatTime = time.Now().UnixNano() / 1e6
+	rf.currentTerm = 0
+	rf.voteFor = -1
+	rf.logs = make([]Log, 0)
+	rf.matchIndex = make([]int, rf.peerCount)
+	rf.nextIndex = make([]int, rf.peerCount)
+	rf.applyCh = applyCh
 	// Your initialization code here (2A, 2B, 2C).
 
 	// initialize from state persisted before a crash
