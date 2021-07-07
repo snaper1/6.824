@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-07 14:28:51
+ * @LastEditTime: 2021-07-07 14:57:51
  */
 
 package raft
@@ -280,6 +280,10 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesRply)
 	reply.Term = curTerm
 	if args.Term < curTerm {
 		return
+	} else if args.Term > curTerm {
+		atomic.StoreInt32(&rf.currentTerm, args.Term)
+		rf.resetPeer()
+		return
 	}
 	atomic.StoreInt64(&rf.heartBeatTime, time.Now().UnixNano()/1e6)
 	atomic.StoreInt32(&rf.currentTerm, args.Term)
@@ -397,7 +401,6 @@ func (rf *Raft) Leading(server int) {
 
 	}
 	rf.mu.Unlock()
-	time.Sleep(time.Microsecond * 100)
 
 }
 
@@ -463,7 +466,7 @@ func (rf *Raft) broadcastAppendEntries() {
 		}
 		if !rf.IsState(LEADER) || rf.killed() {
 			rf.resetPeer()
-			break
+			return
 		}
 		go rf.Leading(server)
 
