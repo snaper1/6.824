@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-07 12:52:25
+ * @LastEditTime: 2021-07-07 14:24:29
  */
 
 package raft
@@ -510,6 +510,11 @@ func (rf *Raft) ticker() {
 		votes := atomic.LoadInt32(&rf.voteCount)
 		if votes > int32(rf.peerCount)/2 {
 			rf.ChangeState(LEADER)
+			rf.mu.Lock()
+			for index, _ := range rf.nextIndex {
+				rf.nextIndex[index] = len(rf.logs)
+			}
+			rf.mu.Unlock()
 		}
 
 	}
@@ -535,6 +540,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.currentTerm = 0
 	rf.voteFor = -1
 	rf.logs = make([]Log, 0)
+	rf.logs = append(rf.logs, Log{Term: 0, Index: 0}) //	初始化 log从1开始存
 	rf.matchIndex = make([]int, rf.peerCount)
 	rf.nextIndex = make([]int, rf.peerCount)
 	rf.applyCh = applyCh
