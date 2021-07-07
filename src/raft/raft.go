@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-07 14:24:29
+ * @LastEditTime: 2021-07-07 14:28:51
  */
 
 package raft
@@ -371,7 +371,7 @@ func (rf *Raft) Leading(server int) {
 	if !rf.IsState(LEADER) || rf.killed() {
 		return
 	}
-
+	rf.mu.Lock()
 	args := AppendEntriesArgs{
 		Term:         curTerm,
 		LeaderId:     rf.me,
@@ -380,9 +380,10 @@ func (rf *Raft) Leading(server int) {
 		PrevLogTerm:  rf.logs[rf.nextIndex[server]-1].Term,
 		LeaderCommit: rf.commitIndex,
 	}
+	rf.mu.Unlock()
 	rep := AppendEntriesRply{}
 	rf.SendAppendEntries(server, &args, &rep)
-
+	rf.mu.Lock()
 	if rep.Success == false && rep.Term > curTerm {
 		rf.resetPeer()
 		return
@@ -395,7 +396,7 @@ func (rf *Raft) Leading(server int) {
 		//rf.matchIndex[server]=
 
 	}
-
+	rf.mu.Unlock()
 	time.Sleep(time.Microsecond * 100)
 
 }
