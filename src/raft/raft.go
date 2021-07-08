@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-07 14:57:51
+ * @LastEditTime: 2021-07-08 19:12:01
  */
 
 package raft
@@ -335,6 +335,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		term = int(atomic.LoadInt32(&rf.currentTerm))
 		rf.mu.Lock()
 		index = len(rf.logs) - 1
+		isLeader = true
 		log := Log{
 			Term:    term,
 			Command: command,
