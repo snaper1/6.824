@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-08 19:12:01
+ * @LastEditTime: 2021-07-08 22:08:45
  */
 
 package raft
@@ -397,8 +397,8 @@ func (rf *Raft) Leading(server int) {
 			rf.nextIndex[server]--
 		}
 	} else { //添加成功
-		rf.nextIndex[server] += len(args.Entries)
-		//rf.matchIndex[server]=
+		rf.matchIndex[server] = len(args.Entries)
+		rf.nextIndex[server] = rf.matchIndex[server] + 1
 
 	}
 	rf.mu.Unlock()
@@ -470,8 +470,29 @@ func (rf *Raft) broadcastAppendEntries() {
 			return
 		}
 		go rf.Leading(server)
-
 	}
+	time.Sleep(50 * time.Millisecond)
+	//提交主节点日志
+	rf.mu.Lock()
+	for i := len(rf.logs) - 1; i > rf.commitIndex; i-- { //从后向前找，最新的，匹配到大多数的index
+		cnt := 1
+		for j := 0; j < rf.peerCount; j++ {
+			if j == rf.me {
+				continue
+			}
+
+			if rf.matchIndex[j] > i {
+				cnt++
+			}
+
+		}
+		if cnt > rf.peerCount/2 {
+			rf.commitIndex = i
+			break
+		}
+	}
+	rf.mu.Unlock()
+	rf.applyToServer() //提交日志
 }
 
 /**
@@ -518,6 +539,7 @@ func (rf *Raft) ticker() {
 			rf.mu.Lock()
 			for index, _ := range rf.nextIndex {
 				rf.nextIndex[index] = len(rf.logs)
+				rf.matchIndex[index]=0
 			}
 			rf.mu.Unlock()
 		}
