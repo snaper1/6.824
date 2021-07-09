@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-08 22:08:45
+ * @LastEditTime: 2021-07-09 16:42:44
  */
 
 package raft
@@ -260,7 +260,7 @@ func (rf *Raft) applyToServer() {
 		msg := ApplyMsg{
 			Command:      rf.logs[rf.lastApplied].Command,
 			CommandValid: true,
-			CommandIndex: rf.lastApplied,
+			CommandIndex: rf.logs[rf.lastApplied].Index,
 		}
 		rf.applyCh <- msg
 	}
@@ -291,28 +291,29 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesRply)
 
 	if args.PrevLogIndex >= len(rf.logs) || args.PrevLogTerm != rf.logs[args.PrevLogIndex].Term {
 		reply.Term = args.Term
-		return
-	}
-	appendLen := len(args.Entries)
-	if args.PrevLogIndex+appendLen > len(rf.logs)-1 { //如果复制的日志本地没有，直接追加存储
-		rf.logs = append(rf.logs[0:args.PrevLogIndex+1], args.Entries...)
+		return //***************出现无法apply
 	} else {
-		for i := args.PrevLogIndex + 1; i < args.PrevLogIndex+1+appendLen; i++ { //检查日志任期
-			j := i - args.PrevLogIndex - 1
-			if args.Entries[j].Term != rf.logs[i].Term { //如果已存在的日志和prevlogTerm不相同，则删除之后的日志
-				rf.logs = append(rf.logs[0:i], args.Entries[j:]...)
-				break
+		reply.Success = true
+		appendLen := len(args.Entries)
+		if args.PrevLogIndex+appendLen > len(rf.logs)-1 { //如果复制的日志本地没有，直接追加存储
+			rf.logs = append(rf.logs[0:args.PrevLogIndex+1], args.Entries...)
+		} else {
+			for i := args.PrevLogIndex + 1; i < args.PrevLogIndex+1+appendLen; i++ { //检查日志任期
+				j := i - args.PrevLogIndex - 1
+				if args.Entries[j].Term != rf.logs[i].Term { //如果已存在的日志和prevlogTerm不相同，则删除之后的日志
+					rf.logs = append(rf.logs[0:i], args.Entries[j:]...)
+					break
+				}
 			}
 		}
 	}
-
 	if args.LeaderCommit > rf.commitIndex {
 		rf.commitIndex = args.LeaderCommit
+		rf.mu.Unlock()
 		rf.applyToServer()
+	} else {
+		rf.mu.Unlock()
 	}
-	rf.mu.Unlock()
-
-	reply.Success = true
 
 }
 func (rf *Raft) SendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesRply) bool {
@@ -334,7 +335,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	if rf.IsState(LEADER) {
 		term = int(atomic.LoadInt32(&rf.currentTerm))
 		rf.mu.Lock()
-		index = len(rf.logs) - 1
+		index = len(rf.logs) //包含一个空的头部节点，因此不需要-1
 		isLeader = true
 		log := Log{
 			Term:    term,
@@ -452,6 +453,7 @@ func (rf *Raft) resetPeer() {
 	atomic.StoreInt32(&rf.voteCount, 0)
 	atomic.StoreInt32(&rf.voteFor, -1)
 	rf.ChangeState(FOLLOWER)
+
 }
 
 /**
@@ -474,6 +476,7 @@ func (rf *Raft) broadcastAppendEntries() {
 	time.Sleep(50 * time.Millisecond)
 	//提交主节点日志
 	rf.mu.Lock()
+
 	for i := len(rf.logs) - 1; i > rf.commitIndex; i-- { //从后向前找，最新的，匹配到大多数的index
 		cnt := 1
 		for j := 0; j < rf.peerCount; j++ {
@@ -481,7 +484,7 @@ func (rf *Raft) broadcastAppendEntries() {
 				continue
 			}
 
-			if rf.matchIndex[j] > i {
+			if rf.matchIndex[j] >= i { //
 				cnt++
 			}
 
@@ -539,7 +542,7 @@ func (rf *Raft) ticker() {
 			rf.mu.Lock()
 			for index, _ := range rf.nextIndex {
 				rf.nextIndex[index] = len(rf.logs)
-				rf.matchIndex[index]=0
+				rf.matchIndex[index] = 0
 			}
 			rf.mu.Unlock()
 		}
@@ -567,7 +570,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.currentTerm = 0
 	rf.voteFor = -1
 	rf.logs = make([]Log, 0)
-	rf.logs = append(rf.logs, Log{Term: 0, Index: 0}) //	初始化 log从1开始存
+	rf.logs = append(rf.logs, Log{}) //	初始化 log从1开始存
 	rf.matchIndex = make([]int, rf.peerCount)
 	rf.nextIndex = make([]int, rf.peerCount)
 	rf.applyCh = applyCh
