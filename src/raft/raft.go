@@ -2,7 +2,7 @@
  * @Description:
  * @User: Snaper <532990528@qq.com>
  * @Date: 2021-06-16 12:25:21
- * @LastEditTime: 2021-07-09 16:42:44
+ * @LastEditTime: 2021-07-09 20:32:57
  */
 
 package raft
@@ -378,10 +378,15 @@ func (rf *Raft) Leading(server int) {
 		return
 	}
 	rf.mu.Lock()
+	index := rf.nextIndex[server] - 1
+	var entry []Log
+	if index+1 < len(rf.logs) {
+		entry = rf.logs[rf.nextIndex[server]:]
+	}
 	args := AppendEntriesArgs{
 		Term:         curTerm,
 		LeaderId:     rf.me,
-		Entries:      rf.logs[rf.nextIndex[server]:],
+		Entries:      entry,
 		PrevLogIndex: rf.logs[rf.nextIndex[server]-1].Index,
 		PrevLogTerm:  rf.logs[rf.nextIndex[server]-1].Term,
 		LeaderCommit: rf.commitIndex,
